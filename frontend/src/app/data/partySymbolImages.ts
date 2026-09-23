@@ -1,0 +1,89 @@
+import aiadmk from '../assets/party-symbols/aiadmk.png';
+import dmk from '../assets/party-symbols/dravida-munnetra-kazhagam.png';
+import jdSecular from '../assets/party-symbols/janata-dal-secular.png';
+import jdUnited from '../assets/party-symbols/janata-dal-united.png';
+import nagaPeoplesFront from '../assets/party-symbols/naga-peoples-front.png';
+import ncpSP from '../assets/party-symbols/ncp-sharadchandra-pawar.png';
+import rjd from '../assets/party-symbols/rashtriya-janata-dal.png';
+import tvk from '../assets/party-symbols/tamilaga-vettri-kazhagam.png';
+import tdp from '../assets/party-symbols/telugu-desam-party.png';
+import ysrcp from '../assets/party-symbols/ysr-congress-party.png';
+import banana from '../../imports/banana.png';
+import kite from '../../imports/kite.png';
+import jug from '../../imports/jug.png';
+import lockAndKey from '../../imports/lock-and-key.png';
+import lion from '../../imports/lion.png';
+import plough from '../../imports/plough.png';
+import conch from '../../imports/conch.png';
+import elephant from '../../imports/elephant.png';
+import cupAndSaucer from '../../imports/cup-and-saucer.png';
+import car from '../../imports/car.png';
+import lion1 from '../../imports/lion1.png';
+import train from '../../imports/train.png';
+import auto from '../../imports/auto.png';
+import spectacles from '../../imports/spectacles.png';
+import cycle from '../../imports/cycle.png';
+import axe from '../../imports/axe.png';
+import farm from '../../imports/farm.png';
+import ladder from '../../imports/ladder.png';
+import mango from '../../imports/mango.png';
+import groom from '../../imports/groom.png';
+import lotus from '../../imports/lotus.png';
+import cpm from '../../imports/cpm.png';
+import hand from '../../imports/hand.png';
+import book from '../../imports/book.png';
+import cpi from '../../imports/cpi.png';
+import clock from '../../imports/clock.png';
+import lock from '../../imports/lock.png';
+import sword from '../../imports/sword.png';
+import cpiml from '../../imports/cpiml.png';
+import drum from '../../imports/drum.png';
+
+
+export const PARTY_SYMBOL_IMAGES: Record<string, string> = {
+  'All India Anna Dravida Munnetra Kazhagam': aiadmk,
+  'Dravida Munnetra Kazhagam': dmk,
+  'Janata Dal (Secular)': jdSecular,
+  'Janata Dal (United)': jdUnited,
+  "Naga People's Front": nagaPeoplesFront,
+  'Nationalist Congress Party – Sharadchandra Pawar': ncpSP,
+  'Rashtriya Janata Dal': rjd,
+  'Tamilaga Vettri Kazhagam': tvk,
+  'Telugu Desam Party': tdp,
+  'YSR Congress Party': ysrcp,
+  // Newly added party symbols from user imports
+  'All Jharkhand Students Union': banana,
+  'All India Majlis-e-Ittehadul Muslimeen': kite,
+  'All India N.R. Congress': jug,
+  'Jannayak Janta Party': lockAndKey,
+  'All India Forward Bloc': lion,
+  "Hill State People's Democratic Party": lion,
+  'Maharashtrawadi Gomantak Party': lion,
+  'Jammu & Kashmir National Conference': plough,
+  'Biju Janata Dal': conch,
+  'Bahujan Samaj Party': elephant,
+  'Asom Gana Parishad': elephant,
+  'Apna Dal (Soneylal)': cupAndSaucer,
+  'Bharat Rashtra Samithi': car,
+  'All India Forward Block': lion1,
+  'Maharashtra Navnirman Sena': train,
+  'Kerala Congress': auto,
+  'Indian National Lok Dal': spectacles,
+  'Samajwadi Party': cycle,
+  'Revolutionary Socialist Party': axe,
+  'Naam Tamilar Katchi': farm,
+  'Indian Union Muslim League': ladder,
+  'Pattali Makkal Katchi': mango,
+  'Aam Aadmi Party': groom,
+  'Bharatiya Janata Party': lotus,
+  'Communist Party of India (Marxist)': cpm,
+  'Indian National Congress': hand,
+  "National People's Party": book,
+  'Communist Party of India': cpi,
+  'Nationalist Congress Party': clock,
+  'All India United Democratic Front': lock,
+  "Bodoland People's Front": sword,
+  'Communist Party of India (Marxist-Leninist) Liberation': cpiml,
+  'Desiya Murpokku Dravida Kazhagam': drum,
+};
+

@@ -55,7 +55,13 @@ import football from '../../imports/football.png';
 import thara from '../../imports/thara.png';
 import willl from '../../imports/willl.png';
 import fire from '../../imports/fire.png';
-import umb from '../../imports/umb.png'
+import umb from '../../imports/umb.png';
+import lamp from '../../imports/lamp.png';
+import pine from '../../imports/pine.png';
+import dru from '../../imports/dru.png';
+import supe from '../../imports/supe.png';
+import zor from '../../imports/zor.png';
+import hat from '../../imports/hat.png';
 
 export const PARTY_SYMBOL_IMAGES: Record<string, string> = {
   'All India Anna Dravida Munnetra Kazhagam': aiadmk,
@@ -119,6 +125,12 @@ export const PARTY_SYMBOL_IMAGES: Record<string, string> = {
   'Shiromani Akali Dal': thara,
   'Shiv Sena': willl,
   'Shiv Sena (UBT)': fire,
-  'Sikkim Democratic Front': Umb,
+  'Sikkim Democratic Front': umb,
+  'Sikkim Krantikari Morcha': lamp,
+  'Tipra Motha Party': pine,
+  'United Democratic Party': dru,
+  'Voice of the People Party': supe,
+  'Zoram Nationalist Party': zor,
+  "Zoram People's Movement": hat,
 };
 

@@ -38,7 +38,10 @@ import lock from '../../imports/lock.png';
 import sword from '../../imports/sword.png';
 import cpiml from '../../imports/cpiml.png';
 import drum from '../../imports/drum.png';
-
+import coconut from '../../imports/coconut.png';
+import kathi from '../../imports/kathi.png';
+import cyclee from '../../imports/cyclee.png';
+import pen from '../../imports/pen.png';
 
 export const PARTY_SYMBOL_IMAGES: Record<string, string> = {
   'All India Anna Dravida Munnetra Kazhagam': aiadmk,
@@ -85,5 +88,10 @@ export const PARTY_SYMBOL_IMAGES: Record<string, string> = {
   "Bodoland People's Front": sword,
   'Communist Party of India (Marxist-Leninist) Liberation': cpiml,
   'Desiya Murpokku Dravida Kazhagam': drum,
+  'Goa Forward Party': coconut,
+  "Indigenous People's Front of Tripura": kathi,
+  'Jammu and Kashmir National Panthers Party': cyclee,
+  'Jammu and Kashmir Peoples Democratic Party': pen,
+  'Janasena Party': glasswater,
 };
 

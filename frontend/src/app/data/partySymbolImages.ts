@@ -11,7 +11,7 @@ import ysrcp from '../assets/party-symbols/ysr-congress-party.png';
 import banana from '../../imports/banana.png';
 import kite from '../../imports/kite.png';
 import jug from '../../imports/jug.png';
-import lockAndKey from '../../imports/lock-and-key.png';
+import key from '../../imports/key.png';
 import lion from '../../imports/lion.png';
 import plough from '../../imports/plough.png';
 import conch from '../../imports/conch.png';
@@ -42,6 +42,20 @@ import coconut from '../../imports/coconut.png';
 import kathi from '../../imports/kathi.png';
 import cyclee from '../../imports/cyclee.png';
 import pen from '../../imports/pen.png';
+import glasswater from '../../imports/glasswater.png';
+import agri from '../../imports/agri.png';
+import willarrow from '../../imports/willarrow.png';
+import twoleves from '../../imports/twoleves.png';
+import heli from '../../imports/heli.png';
+import star from '../../imports/star.png';
+import makka from '../../imports/makka.png';
+import stritch from '../../imports/stritch.png';
+import bottle from '../../imports/bottle.png';
+import football from '../../imports/football.png';
+import thara from '../../imports/thara.png';
+import willl from '../../imports/willl.png';
+import fire from '../../imports/fire.png';
+import umb from '../../imports/umb.png'
 
 export const PARTY_SYMBOL_IMAGES: Record<string, string> = {
   'All India Anna Dravida Munnetra Kazhagam': aiadmk,
@@ -58,7 +72,7 @@ export const PARTY_SYMBOL_IMAGES: Record<string, string> = {
   'All Jharkhand Students Union': banana,
   'All India Majlis-e-Ittehadul Muslimeen': kite,
   'All India N.R. Congress': jug,
-  'Jannayak Janta Party': lockAndKey,
+  'Jannayak Janta Party': key,
   'All India Forward Bloc': lion,
   "Hill State People's Democratic Party": lion,
   'Maharashtrawadi Gomantak Party': lion,
@@ -93,5 +107,18 @@ export const PARTY_SYMBOL_IMAGES: Record<string, string> = {
   'Jammu and Kashmir National Panthers Party': cyclee,
   'Jammu and Kashmir Peoples Democratic Party': pen,
   'Janasena Party': glasswater,
+  'Janta Congress Chhattisgarh': agri,
+  'Jharkhand Mukti Morcha': willarrow,
+  'Kerala Congress (M)': twoleves,
+  'Lok Janshakti Party (Ram Vilas)': heli,
+  'Mizo National Front': star,
+  "People's Party of Arunachal": makka,
+  'Rashtriya Lok Janshakti Party': stritch,
+  'Rashtriya Loktantrik Party': bottle,
+  'Revolutionary Goans Party': football,
+  'Shiromani Akali Dal': thara,
+  'Shiv Sena': willl,
+  'Shiv Sena (UBT)': fire,
+  'Sikkim Democratic Front': Umb,
 };
 

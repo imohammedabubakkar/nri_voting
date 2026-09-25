@@ -92,7 +92,13 @@ import pump from '../../imports/pump.png';
 import cyele from '../../imports/cyele.png';
 import farms from '../../imports/farms.png';
 import tele from '../../imports/tele.png';
-
+import keyee from '../../imports/keyee.png';
+import cylc from '../../imports/cylc.png';
+import pala from '../../imports/pala.png';
+import chair from '../../imports/chair.png';
+import cyelec from '../../imports/cyelec.png';
+import pana from '../../imports/pana.png';
+import boatt from '../../imports/boatt.png';
 
 
 
@@ -195,5 +201,12 @@ export const PARTY_SYMBOL_IMAGES: Record<string, string> = {
   "Rashtriya Lok Morcha": cyele,
   "Republican Party of India (Athawale)": farms,
   "Shiromani Akali Dal (Amritsar)": tele,
+  "Suheldev Bharatiya Samaj Party": keyee,
+  "Tamil Maanila Congress (Moopanar)": cylc,
+  "Twenty 20 Party": pala,
+  "Uttarakhand Kranti Dal": chair,
+  "Vanchit Bahujan Aaghadi": cyelec,
+  "Viduthalai Chiruthaigal Katchi": pana,
+  "Vikassheel Insaan Party": boatt,
 };
 

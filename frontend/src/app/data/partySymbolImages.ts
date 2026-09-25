@@ -80,7 +80,18 @@ import lige from '../../imports/lige.png';
 import tree from '../../imports/tree.png';
 import tor from '../../imports/tor.png';
 import messi from '../../imports/messi.png';
-import rike from '../../imports/rike.png';
+import cyclee from '../../imports/cyclee.png';
+import tha from '../../imports/tha.png';
+import mdk from '../../imports/mdk.png';
+import tiff from '../../imports/tiff.png';
+import kitee from '../../imports/kitee.png';
+import teagl from '../../imports/teagl.png';
+import crone from '../../imports/crone.png';
+import cyel from '../../imports/cyel.png';
+import pump from '../../imports/pump.png';
+import cyele from '../../imports/cyele.png';
+import farms from '../../imports/farms.png';
+import tele from '../../imports/tele.png';
 
 
 
@@ -172,6 +183,17 @@ export const PARTY_SYMBOL_IMAGES: Record<string, string> = {
   "Kerala Congress (Jacob)": tree,
   "Makkal Needhi Maiam": tor,
   "Mamata All India Trinamool Congress": messi,
-  "Manipur People's Party": rike,
+  "Manipur Peoples Party": cyclee,
+  "Manithaneya Makkal Katchi": tha,
+  "Marumalarchi Dravida Munnetra Kazhagam": mdk,
+  "NISHAD Party": tiff,
+  "Odisha Jan Morcha": kitee,
+  "Peace Party": teagl,
+  "People's Democratic Alliance": crone,
+  "Raijor Dal": cyel,
+  "Rashtriya Lok Dal": pump,
+  "Rashtriya Lok Morcha": cyele,
+  "Republican Party of India (Athawale)": farms,
+  "Shiromani Akali Dal (Amritsar)": tele,
 };
 

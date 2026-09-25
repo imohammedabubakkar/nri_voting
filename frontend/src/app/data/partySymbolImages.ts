@@ -80,7 +80,7 @@ import lige from '../../imports/lige.png';
 import tree from '../../imports/tree.png';
 import tor from '../../imports/tor.png';
 import messi from '../../imports/messi.png';
-import cy from '../../imports/cy.png';
+import rike from '../../imports/rike.png';
 
 
 
@@ -172,6 +172,6 @@ export const PARTY_SYMBOL_IMAGES: Record<string, string> = {
   "Kerala Congress (Jacob)": tree,
   "Makkal Needhi Maiam": tor,
   "Mamata All India Trinamool Congress": messi,
-  "Manipur People's Party": cy,
+  "Manipur People's Party": rike,
 };
 

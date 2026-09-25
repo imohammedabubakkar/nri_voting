@@ -15,7 +15,7 @@ export const PARTIES: Party[] = [
   { name: 'All India Anna Dravida Munnetra Kazhagam', symbol: '🍃', abbr: 'AIADMK', symbolImage: img('All India Anna Dravida Munnetra Kazhagam') },
   { name: 'All India Forward Bloc', symbol: '🦁', abbr: 'AIFB', symbolImage: img('All India Forward Bloc') },
   { name: 'All India Hindustan Congress Party', symbol: '🦁', abbr: 'AIHCP', symbolImage: img('All India Hindustan Congress Party') },
-  { name: 'All India Mahila Empowerment Partyy', symbol: '🦁', abbr: 'AIMEP', symbolImage: img('All India Mahila Empowerment Party') },
+  { name: 'All India Mahila Empowerment Party', symbol: '🦁', abbr: 'AIMEP', symbolImage: img('All India Mahila Empowerment Party') },
   { name: 'All India Majlis-e-Ittehadul Muslimeen', symbol: '🪁', abbr: 'AIMIM', symbolImage: img('All India Majlis-e-Ittehadul Muslimeen') },
   { name: 'All India N.R. Congress', symbol: '🏺', abbr: 'AINRC', symbolImage: img('All India N.R. Congress') },
   { name: 'All India Trinamool Congress', symbol: '🌸', abbr: 'AITC' },
@@ -135,6 +135,7 @@ export const PARTIES: Party[] = [
   { name: "Twenty 20 Party", symbol: '🐓', abbr: 'T20P', symbolImage: img("Twenty 20 Party") },
   { name: "Uttarakhand Kranti Dal", symbol: '🐓', abbr: 'UKD', symbolImage: img("Uttarakhand Kranti Dal") },
   { name: 'United Democratic Party', symbol: '🥁', abbr: 'UDP' },
+  { name: "United People's Party Liberal", symbol: '🐓', abbr: 'UPPL', symbolImage: img("United People's Party Liberal") },
   { name: "Vanchit Bahujan Aaghadi", symbol: '🐓', abbr: 'VBA', symbolImage: img("Vanchit Bahujan Aaghadi") },
   { name: "Viduthalai Chiruthaigal Katchi", symbol: '🐓', abbr: 'VCK', symbolImage: img("Viduthalai Chiruthaigal Katchi") },
   { name: "Vikassheel Insaan Party", symbol: '🐓', abbr: 'VIP', symbolImage: img("Vikassheel Insaan Party") },
@@ -144,4 +145,5 @@ export const PARTIES: Party[] = [
   { name: 'Zoram Nationalist Party', symbol: '🌐', abbr: 'ZNP' },
   { name: "Zoram People's Movement", symbol: '🎩', abbr: 'ZPM' },
   { name: 'NONE OF THE ABOVE', symbol: '🗳️', abbr: 'NOTA' },
+
 ];

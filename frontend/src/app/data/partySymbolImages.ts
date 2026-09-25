@@ -62,6 +62,22 @@ import dru from '../../imports/dru.png';
 import supe from '../../imports/supe.png';
 import zor from '../../imports/zor.png';
 import hat from '../../imports/hat.png';
+import track from '../../imports/track.png';
+import horse from '../../imports/horse.png';
+import tracky from '../../imports/tracky.png';
+import dia from '../../imports/dia.png';
+import kup from '../../imports/kup.png';
+import lig from '../../imports/lig.png';
+import jugy from '../../imports/jugy.png';
+import mail from '../../imports/mail.png';
+import board from '../../imports/board.png';
+import cut from '../../imports/cut.png';
+import kadi from '../../imports/kadi.png';
+import footy from '../../imports/footy.png';
+import biru from '../../imports/biru.png';
+
+
+
 
 export const PARTY_SYMBOL_IMAGES: Record<string, string> = {
   'All India Anna Dravida Munnetra Kazhagam': aiadmk,
@@ -132,5 +148,18 @@ export const PARTY_SYMBOL_IMAGES: Record<string, string> = {
   'Voice of the People Party': supe,
   'Zoram Nationalist Party': zor,
   "Zoram People's Movement": hat,
+  "United People's Party Liberal": track,
+  "Akhil Bharat Hindu Mahasabha": horse,
+  "All India Hindustan Congress Party": tracky,
+  "All India Mahila Empowerment Party": dia,
+  "Amra Bangali": kup,
+  "Azad Adhikar Sena": lig,
+  "Aazad Samaj Party (Kanshi Ram)": jugy,
+  "Democratic Trinamool Congress": mail,
+  "Goa Suraksha Manch": board,
+  "Gondwana Ganatantra Party": cut,
+  "Hindustani Awam Morcha (Secular)": kadi,
+  "Indian Gandhiyan Party": footy,
+  "Indian Secular Front": biru,
 };
 

@@ -210,93 +210,104 @@ export function DownloadVotersPage() {
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">Country</label>
                   <select value={filterCountry} onChange={handleCountryChange} className={selectCls}>
-                    <option value="">-- All Countries --</option>
+                    <option value="">-- Choose Country --</option>
                     {countryOptions.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">Place / City</label>
                   <select value={filterPlace} onChange={e => setFilterPlace(e.target.value)} className={selectCls} disabled={!filterCountry}>
-                    <option value="">{filterCountry ? '-- All Places --' : 'Select country first'}</option>
+                    <option value="">{filterCountry ? '-- Choose Place / City --' : 'Select country first'}</option>
                     {placeOptions.map(p => <option key={p} value={p}>{p}</option>)}
                   </select>
                 </div>
               </div>
 
               <div className="mt-4 flex items-center justify-between">
-                <p className="text-sm text-gray-600">
-                  <span className="font-bold text-blue-900">{filteredUsers.length}</span> voter{filteredUsers.length !== 1 ? 's' : ''} match the filter
-                </p>
+                {filterCountry && filterPlace ? (
+                  <p className="text-sm text-gray-600">
+                    <span className="font-bold text-blue-900">{filteredUsers.length}</span> voter{filteredUsers.length !== 1 ? 's' : ''} match the filter ({filterCountry} · {filterPlace})
+                  </p>
+                ) : (
+                  <p className="text-sm text-gray-500 italic">
+                    {!filterCountry ? 'Select a country and place to view voter details' : 'Select a place/city to view voter details'}
+                  </p>
+                )}
                 {(filterCountry || filterPlace) && (
-                  <button onClick={() => { setFilterCountry(''); setFilterPlace(''); }} className="text-sm text-red-500 hover:underline">
+                  <button onClick={() => { setFilterCountry(''); setFilterPlace(''); }} className="text-sm text-red-500 hover:underline cursor-pointer">
                     Clear filters
                   </button>
                 )}
               </div>
             </div>
 
-            {/* Preview Table */}
-            <div className="border-2 border-gray-200 rounded-xl overflow-hidden mb-6">
-              <div className="px-5 py-3 bg-blue-900 text-white text-sm font-semibold flex justify-between items-center">
-                <span>Preview — {filteredUsers.length} Record{filteredUsers.length !== 1 ? 's' : ''}</span>
-                <span className="text-xs opacity-75">Scroll right to see all columns</span>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-gradient-to-r from-orange-500 to-green-600 text-white">
-                      <th className="px-4 py-2.5 text-left font-semibold whitespace-nowrap">#</th>
-                      <th className="px-4 py-2.5 text-left font-semibold whitespace-nowrap">Name</th>
-                      <th className="px-4 py-2.5 text-left font-semibold whitespace-nowrap">Date of Birth</th>
-                      <th className="px-4 py-2.5 text-left font-semibold whitespace-nowrap">Country</th>
-                      <th className="px-4 py-2.5 text-left font-semibold whitespace-nowrap">Current Place</th>
-                      <th className="px-4 py-2.5 text-left font-semibold whitespace-nowrap">Current Address</th>
-                      <th className="px-4 py-2.5 text-left font-semibold whitespace-nowrap">State</th>
-                      <th className="px-4 py-2.5 text-left font-semibold whitespace-nowrap">District</th>
-                      <th className="px-4 py-2.5 text-left font-semibold whitespace-nowrap">Assembly Constituency</th>
-                      <th className="px-4 py-2.5 text-left font-semibold whitespace-nowrap">Parliament Constituency</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredUsers.length === 0 ? (
-                      <tr>
-                        <td colSpan={10} className="px-4 py-10 text-center text-gray-500">
-                          {allUsers.length === 0 ? 'No voters registered yet.' : 'No voters match the selected filters.'}
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredUsers.map((u, i) => (
-                        <tr key={u.id} className={`border-b hover:bg-yellow-50 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
-                          <td className="px-4 py-3 text-gray-500">{i + 1}</td>
-                          <td className="px-4 py-3 font-semibold text-blue-900 whitespace-nowrap">{u.name || '—'}</td>
-                          <td className="px-4 py-3 text-gray-700 whitespace-nowrap font-mono">{formatDobToDDMMYYYY(u.dob)}</td>
-                          <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{u.country || '—'}</td>
-                          <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{u.currentPlace || '—'}</td>
-                          <td className="px-4 py-3 text-gray-700 max-w-xs truncate">{u.currentAddress || '—'}</td>
-                          <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{u.indianState || '—'}</td>
-                          <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{u.indianDistrict || '—'}</td>
-                          <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{u.assemblyConstituency || '—'}</td>
-                          <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{u.parliamentConstituency || u.constituency || '—'}</td>
+            {/* Voter Details & Download - ONLY shown when BOTH country and place are selected */}
+            {filterCountry && filterPlace ? (
+              <>
+                {/* Preview Table */}
+                <div className="border-2 border-gray-200 rounded-xl overflow-hidden mb-6">
+                  <div className="px-5 py-3 bg-blue-900 text-white text-sm font-semibold flex justify-between items-center">
+                    <span>Preview — {filteredUsers.length} Record{filteredUsers.length !== 1 ? 's' : ''}</span>
+                    <span className="text-xs opacity-75">Scroll right to see all columns</span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-gradient-to-r from-orange-500 to-green-600 text-white">
+                          <th className="px-4 py-2.5 text-left font-semibold whitespace-nowrap">#</th>
+                          <th className="px-4 py-2.5 text-left font-semibold whitespace-nowrap">Name</th>
+                          <th className="px-4 py-2.5 text-left font-semibold whitespace-nowrap">Date of Birth</th>
+                          <th className="px-4 py-2.5 text-left font-semibold whitespace-nowrap">Country</th>
+                          <th className="px-4 py-2.5 text-left font-semibold whitespace-nowrap">Current Place</th>
+                          <th className="px-4 py-2.5 text-left font-semibold whitespace-nowrap">Current Address</th>
+                          <th className="px-4 py-2.5 text-left font-semibold whitespace-nowrap">State</th>
+                          <th className="px-4 py-2.5 text-left font-semibold whitespace-nowrap">District</th>
+                          <th className="px-4 py-2.5 text-left font-semibold whitespace-nowrap">Assembly Constituency</th>
+                          <th className="px-4 py-2.5 text-left font-semibold whitespace-nowrap">Parliament Constituency</th>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+                      </thead>
+                      <tbody>
+                        {filteredUsers.length === 0 ? (
+                          <tr>
+                            <td colSpan={10} className="px-4 py-10 text-center text-gray-500">
+                              No voters found for {filterCountry} ({filterPlace}).
+                            </td>
+                          </tr>
+                        ) : (
+                          filteredUsers.map((u, i) => (
+                            <tr key={u.id} className={`border-b hover:bg-yellow-50 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+                              <td className="px-4 py-3 text-gray-500">{i + 1}</td>
+                              <td className="px-4 py-3 font-semibold text-blue-900 whitespace-nowrap">{u.name || '—'}</td>
+                              <td className="px-4 py-3 text-gray-700 whitespace-nowrap font-mono">{formatDobToDDMMYYYY(u.dob)}</td>
+                              <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{u.country || '—'}</td>
+                              <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{u.currentPlace || '—'}</td>
+                              <td className="px-4 py-3 text-gray-700 max-w-xs truncate">{u.currentAddress || '—'}</td>
+                              <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{u.indianState || '—'}</td>
+                              <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{u.indianDistrict || '—'}</td>
+                              <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{u.assemblyConstituency || '—'}</td>
+                              <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{u.parliamentConstituency || u.constituency || '—'}</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
 
-            {/* Download Button */}
-            <button
-              onClick={handleDownloadPDF}
-              disabled={filteredUsers.length === 0}
-              className="w-full flex items-center justify-center gap-3 bg-gradient-to-r from-blue-900 to-blue-800 text-white py-4 rounded-xl font-bold text-lg hover:from-blue-800 hover:to-blue-700 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Download className="w-6 h-6" />
-              Download PDF ({filteredUsers.length} voter{filteredUsers.length !== 1 ? 's' : ''})
-            </button>
-            <p className="text-center text-xs text-gray-500 mt-2">
-              Opens print dialog — choose "Save as PDF" to download
-            </p>
+                {/* Download Button */}
+                <button
+                  onClick={handleDownloadPDF}
+                  disabled={filteredUsers.length === 0}
+                  className="w-full flex items-center justify-center gap-3 bg-gradient-to-r from-blue-900 to-blue-800 text-white py-4 rounded-xl font-bold text-lg hover:from-blue-800 hover:to-blue-700 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  <Download className="w-6 h-6" />
+                  Download PDF ({filteredUsers.length} voter{filteredUsers.length !== 1 ? 's' : ''})
+                </button>
+                <p className="text-center text-xs text-gray-500 mt-2">
+                  Opens print dialog — choose "Save as PDF" to download
+                </p>
+              </>
+            ) : null}
           </div>
         </div>
       </div>

@@ -7,7 +7,7 @@ export function HomePage() {
 
   return (
     <Layout>
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-4xl mx-auto my-auto w-full py-8">
         <div className="text-center mb-12">
           <h2 className="text-4xl font-bold text-blue-900 mb-4">Welcome to NRI Remote Voting</h2>
           <p className="text-lg text-gray-600">Secure and convenient voting for Non-Resident Indians</p>

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Layout } from '../components/Layout';
-import { Lock, User } from 'lucide-react';
+import { Lock, User, ArrowLeft } from 'lucide-react';
 
 export function AdminLoginPage() {
   const navigate = useNavigate();
@@ -13,6 +13,7 @@ export function AdminLoginPage() {
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (username === 'abubakkar' && password === '10092004') {
+      localStorage.setItem('isAdminLoggedIn', 'true');
       navigate('/admin/dashboard');
     } else {
       setError('Invalid username or password.');
@@ -22,6 +23,13 @@ export function AdminLoginPage() {
   return (
     <Layout>
       <div className="max-w-md mx-auto">
+        <button
+          onClick={() => navigate('/')}
+          className="flex items-center gap-2 text-blue-900 hover:text-blue-700 mb-6 font-semibold cursor-pointer"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back to Home
+        </button>
         <div className="bg-white rounded-lg shadow-xl p-8 border-t-4 border-green-600">
           <div className="text-center mb-8">
             <div className="w-16 h-16 bg-gradient-to-br from-green-600 to-green-700 rounded-full flex items-center justify-center mx-auto mb-4">

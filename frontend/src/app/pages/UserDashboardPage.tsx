@@ -334,10 +334,10 @@ export function UserDashboardPage() {
       partySymbolImage: PARTY_SYMBOL_IMAGES[c.partyName] ?? c.partySymbolImage ?? '',
     }));
     setAssemblyCandidates(
-      resolved.filter(c => c.electionType === 'assembly' && c.constituency === user.assemblyConstituency)
+      resolved.filter(c => c.electionType === 'assembly' && c.constituency?.trim().toUpperCase() === user.assemblyConstituency?.trim().toUpperCase())
     );
     setParliamentCandidates(
-      resolved.filter(c => c.electionType === 'parliament' && c.constituency === (user.parliamentConstituency || user.constituency))
+      resolved.filter(c => c.electionType === 'parliament' && c.constituency?.trim().toUpperCase() === (user.parliamentConstituency || user.constituency)?.trim().toUpperCase())
     );
   }, []);
 

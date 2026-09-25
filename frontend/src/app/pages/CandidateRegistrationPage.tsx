@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { Layout } from '../components/Layout';
-import { ArrowLeft, UserPlus, Pencil, Trash2, UserCheck, X } from 'lucide-react';
+import { ArrowLeft, UserPlus, Pencil, Trash2, X } from 'lucide-react';
 import { DISTRICTS_BY_STATE } from '../data/indiaData';
 import { PARTIES, Party } from '../data/partiesData';
 import { PARTY_SYMBOL_IMAGES } from '../data/partySymbolImages';
@@ -33,6 +33,12 @@ function calcAge(dob: string): string {
   const m = today.getMonth() - birth.getMonth();
   if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
   return age >= 0 ? String(age) : '';
+}
+
+function getMaxCandidateDob(): string {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - 25);
+  return d.toISOString().split('T')[0];
 }
 
 function formatDobToDDMMYYYY(dob?: string): string {
@@ -82,7 +88,6 @@ export function CandidateRegistrationPage() {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [editId, setEditId] = useState<number | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
-  const [selectedCandidateId, setSelectedCandidateId] = useState<number | ''>('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -96,6 +101,7 @@ export function CandidateRegistrationPage() {
     // Re-resolve symbolImage from live Vite imports — localStorage URLs go stale after rebuilds
     setCandidates(stored.map(c => ({
       ...c,
+      constituency: (c.constituency || '').toUpperCase(),
       partySymbolImage: PARTY_SYMBOL_IMAGES[c.partyName] ?? c.partySymbolImage ?? '',
     })));
   }, []);
@@ -133,7 +139,7 @@ export function CandidateRegistrationPage() {
         c.electionType === form.electionType &&
         c.state === form.state &&
         c.district === form.district &&
-        c.constituency === form.constituency &&
+        (c.constituency || '').toUpperCase() === (form.constituency || '').trim().toUpperCase() &&
         (editId === null || c.id !== editId) // allow own party when editing
       )
       .map(c => c.partyName)
@@ -158,7 +164,18 @@ export function CandidateRegistrationPage() {
   }
 
   function handleDobChange(val: string) {
-    setForm(prev => ({ ...prev, dob: val, age: calcAge(val) }));
+    const age = calcAge(val);
+    setForm(prev => ({ ...prev, dob: val, age }));
+    if (val) {
+      const numAge = Number(age);
+      if (numAge < 25) {
+        setError('Candidate must be at least 25 years old to qualify for Assembly or Parliament election.');
+      } else {
+        setError('');
+      }
+    } else {
+      setError('');
+    }
   }
 
   function handlePartyChange(val: string) {
@@ -184,23 +201,36 @@ export function CandidateRegistrationPage() {
     if (!form.electionType) return setError('Please select election type.');
     if (!form.state) return setError('Please select state.');
     if (!form.district) return setError('Please select district.');
-    if (!form.constituency) return setError('Please enter/select constituency name.');
+    if (!form.constituency.trim()) return setError('Please enter/select constituency name.');
     if (!form.name.trim()) return setError('Please enter candidate name.');
+    if (!form.dob) return setError('Please select date of birth.');
+    const candidateAge = Number(form.age || calcAge(form.dob));
+    if (!candidateAge || candidateAge < 25) {
+      return setError('Candidate must be at least 25 years old to qualify for election in Assembly or Parliament constituency.');
+    }
     if (!form.partyName) return setError('Please select a party.');
+
+    const upperConstituency = form.constituency.trim().toUpperCase();
 
     if (editId !== null) {
       const updated = candidates.map(c =>
-        c.id === editId ? { ...form, id: editId, partySymbolImage: form.partySymbolImage } as Candidate : c
+        c.id === editId ? { ...form, constituency: upperConstituency, id: editId, partySymbolImage: form.partySymbolImage } as Candidate : c
       );
       saveToStorage(updated);
-      setSelectedCandidateId(editId);
+      setFilterState(form.state);
+      setFilterDistrict(form.district);
+      setFilterElectionType(form.electionType);
+      setFilterConstituency(upperConstituency);
       setSuccess('Candidate updated successfully!');
     } else {
       const newId = Date.now();
-      const newCandidate: Candidate = { ...form, id: newId } as Candidate;
+      const newCandidate: Candidate = { ...form, constituency: upperConstituency, id: newId } as Candidate;
       const updated = [...candidates, newCandidate];
       saveToStorage(updated);
-      setSelectedCandidateId(newId);
+      setFilterState(form.state);
+      setFilterDistrict(form.district);
+      setFilterElectionType(form.electionType);
+      setFilterConstituency(upperConstituency);
       setSuccess('Candidate registered successfully!');
     }
 
@@ -215,7 +245,7 @@ export function CandidateRegistrationPage() {
       electionType: c.electionType,
       state: c.state,
       district: c.district,
-      constituency: c.constituency,
+      constituency: (c.constituency || '').toUpperCase(),
       name: c.name,
       dob: c.dob,
       age: c.age,
@@ -233,9 +263,6 @@ export function CandidateRegistrationPage() {
   function handleDelete(id: number) {
     const updated = candidates.filter(c => c.id !== id);
     saveToStorage(updated);
-    if (selectedCandidateId === id) {
-      setSelectedCandidateId('');
-    }
     setDeleteId(null);
     setSuccess('Candidate deleted.');
     setTimeout(() => setSuccess(''), 2500);
@@ -336,8 +363,8 @@ export function CandidateRegistrationPage() {
                   <input
                     type="text"
                     value={form.constituency}
-                    onChange={e => set('constituency', e.target.value)}
-                    className={inputCls}
+                    onChange={e => set('constituency', e.target.value.toUpperCase())}
+                    className={`${inputCls} uppercase`}
                     placeholder={form.district ? 'Enter constituency name' : 'Select district first'}
                     disabled={!form.district}
                   />
@@ -347,7 +374,7 @@ export function CandidateRegistrationPage() {
               {/* Add Candidate Button */}
               {!showForm && (
                 <button
-                  onClick={() => { setShowForm(true); setEditId(null); setError(''); setForm({ ...BLANK_FORM, electionType: form.electionType, state: form.state, district: form.district, constituency: form.constituency }); }}
+                  onClick={() => { setShowForm(true); setEditId(null); setError(''); setForm({ ...BLANK_FORM, electionType: form.electionType, state: form.state, district: form.district, constituency: form.constituency.trim().toUpperCase() }); }}
                   disabled={!form.constituency}
                   className="mt-2 px-6 py-2.5 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-bold rounded-lg hover:from-orange-600 hover:to-orange-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center gap-2"
                 >
@@ -386,26 +413,66 @@ export function CandidateRegistrationPage() {
 
                     {/* DOB */}
                     <div>
-                      <label className={labelCls}>Date of Birth <span className="text-red-500">*</span></label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className={labelCls}>
+                          Date of Birth <span className="text-red-500">*</span>
+                        </label>
+                        <span className="text-xs font-bold text-orange-700 bg-orange-100 px-2 py-0.5 rounded border border-orange-200">
+                          Min. 25 Years Required
+                        </span>
+                      </div>
                       <input
                         type="date"
                         value={form.dob}
                         onChange={e => handleDobChange(e.target.value)}
-                        className={inputCls}
-                        max={new Date().toISOString().split('T')[0]}
+                        className={`${inputCls} ${
+                          form.dob && Number(form.age) < 25
+                            ? 'border-red-500 focus:border-red-500 bg-red-50/50 text-red-900'
+                            : ''
+                        }`}
+                        max={getMaxCandidateDob()}
                       />
+                      {form.dob && Number(form.age) < 25 && (
+                        <p className="text-xs text-red-600 font-bold mt-1.5 flex items-center gap-1">
+                          ✕ Candidate is {form.age || 0} years old. Must be 25 or above 25 for candidate qualification.
+                        </p>
+                      )}
                     </div>
 
                     {/* Age (auto-calculated) */}
                     <div>
                       <label className={labelCls}>Age (Auto-calculated)</label>
-                      <input
-                        type="text"
-                        value={form.age}
-                        readOnly
-                        className={`${inputCls} bg-gray-100 text-gray-500 cursor-not-allowed`}
-                        placeholder="Calculated from DOB"
-                      />
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={form.age ? `${form.age} years` : ''}
+                          readOnly
+                          className={`${inputCls} ${
+                            form.age
+                              ? Number(form.age) >= 25
+                                ? 'bg-green-50 border-green-500 text-green-900 font-bold'
+                                : 'bg-red-50 border-red-500 text-red-700 font-bold'
+                              : 'bg-gray-100 text-gray-500'
+                          } cursor-not-allowed`}
+                          placeholder="Calculated from DOB (Minimum 25 years)"
+                        />
+                        {form.age && (
+                          <span
+                            className={`absolute right-3 top-1/2 -translate-y-1/2 text-xs font-black px-2.5 py-1 rounded-full ${
+                              Number(form.age) >= 25
+                                ? 'bg-green-100 text-green-800 border border-green-300'
+                                : 'bg-red-100 text-red-700 border border-red-300'
+                            }`}
+                          >
+                            {Number(form.age) >= 25 ? '✓ Eligible (25+)' : '✕ Not Eligible (< 25)'}
+                          </span>
+                        )}
+                      </div>
+                      {form.age && Number(form.age) < 25 && (
+                        <p className="text-xs text-red-600 font-bold mt-1.5">
+                          Not eligible: Candidate must be 25 or above 25 years old.
+                        </p>
+                      )}
                     </div>
 
                     {/* Party Dropdown */}
@@ -451,7 +518,8 @@ export function CandidateRegistrationPage() {
                   <div className="flex gap-3 mt-6">
                     <button
                       type="submit"
-                      className="px-8 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white font-bold rounded-lg hover:from-green-700 hover:to-green-800 transition-all shadow"
+                      disabled={Boolean(form.dob && Number(form.age) < 25)}
+                      className="px-8 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white font-bold rounded-lg hover:from-green-700 hover:to-green-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow"
                     >
                       {editId !== null ? 'Update Candidate' : 'Register Candidate'}
                     </button>
@@ -495,17 +563,18 @@ export function CandidateRegistrationPage() {
                     (!filterState || c.state === filterState) &&
                     (!filterDistrict || c.district === filterDistrict) &&
                     (!filterElectionType || c.electionType === filterElectionType)
-                  ).map(c => c.constituency).filter(Boolean)
+                  ).map(c => (c.constituency || '').toUpperCase()).filter(Boolean)
                 )).sort();
 
                 const filtered = candidates.filter(c =>
                   (!filterState || c.state === filterState) &&
                   (!filterDistrict || c.district === filterDistrict) &&
                   (!filterElectionType || c.electionType === filterElectionType) &&
-                  (!filterConstituency || c.constituency === filterConstituency)
+                  (!filterConstituency || (c.constituency || '').toUpperCase() === filterConstituency.toUpperCase())
                 );
 
-                const selectedCandidate = candidates.find(c => c.id === selectedCandidateId);
+                const isEntireRegionSelected = Boolean(filterState && filterDistrict && filterConstituency);
+                const candidatesToShow = isEntireRegionSelected ? filtered : [];
 
                 return (
                   <>
@@ -513,9 +582,26 @@ export function CandidateRegistrationPage() {
                     <div className="p-6 bg-gray-50 border-b border-gray-200 space-y-4">
                       {/* Regional Filters */}
                       <div>
-                        <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
-                          Filter by Region (Optional)
-                        </p>
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-xs font-bold text-blue-900 uppercase tracking-wider">
+                            Filter by Region to View Candidates
+                          </p>
+                          {(filterState || filterDistrict || filterElectionType || filterConstituency) && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setFilterState('');
+                                setFilterDistrict('');
+                                setFilterElectionType('');
+                                setFilterConstituency('');
+                              }}
+                              className="text-xs text-orange-600 hover:text-orange-800 font-semibold flex items-center gap-1 cursor-pointer"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                              Clear Filters
+                            </button>
+                          )}
+                        </div>
                         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
                           {/* State */}
                           <div>
@@ -575,7 +661,9 @@ export function CandidateRegistrationPage() {
                             </label>
                             <select
                               value={filterConstituency}
-                              onChange={e => setFilterConstituency(e.target.value)}
+                              onChange={e => {
+                                setFilterConstituency(e.target.value);
+                              }}
                               className={selectCls}
                               disabled={fConstituencies.length === 0}
                             >
@@ -585,138 +673,32 @@ export function CandidateRegistrationPage() {
                           </div>
                         </div>
                       </div>
-
-                      {/* ── SELECT CANDIDATE DROPDOWN ── */}
-                      <div className="pt-3 border-t border-gray-200">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-1.5">
-                          <label className="text-xs font-bold text-blue-900 uppercase tracking-wider flex items-center gap-1.5">
-                            <UserCheck className="w-4 h-4 text-orange-600" />
-                            Select Candidate <span className="text-orange-600 font-bold">({filtered.length} available)</span>
-                          </label>
-                          {selectedCandidateId !== '' && (
-                            <button
-                              type="button"
-                              onClick={() => setSelectedCandidateId('')}
-                              className="text-xs text-orange-600 hover:text-orange-800 font-semibold flex items-center gap-1 self-start sm:self-auto cursor-pointer"
-                            >
-                              <X className="w-3.5 h-3.5" />
-                              Clear Selection
-                            </button>
-                          )}
-                        </div>
-                        <select
-                          value={selectedCandidateId}
-                          onChange={e => setSelectedCandidateId(e.target.value ? Number(e.target.value) : '')}
-                          className="w-full px-4 py-2.5 text-sm font-semibold border-2 border-orange-400 focus:border-orange-600 rounded-lg outline-none bg-white text-gray-800 shadow-sm transition-all cursor-pointer"
-                        >
-                          <option value="">-- Choose Candidate to View Details --</option>
-                          {filtered.map((c, idx) => (
-                            <option key={c.id} value={c.id}>
-                              #{idx + 1} — {c.name} ({c.partyName} · {c.constituency})
-                            </option>
-                          ))}
-                        </select>
-                      </div>
                     </div>
 
                     {/* Candidate Details Section */}
-                    {!selectedCandidate ? (
-                      <div className="py-14 px-6 text-center bg-white">
-                        <div className="w-14 h-14 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                          <UserCheck className="w-7 h-7 text-orange-600" />
-                        </div>
-                        <h4 className="text-base font-bold text-gray-800">Candidate Details Hidden</h4>
-                        <p className="text-sm text-gray-500 mt-1 max-w-md mx-auto">
-                          Please choose a candidate from the <strong className="text-orange-600">"Select Candidate"</strong> dropdown above to view their details.
-                        </p>
+                    {isEntireRegionSelected && filtered.length === 0 ? (
+                      <div className="p-8 text-center bg-white border-t border-orange-200">
+                        <p className="font-bold text-gray-700">No candidates registered for {filterConstituency}</p>
+                        <p className="text-sm text-gray-500 mt-1">There are no candidates registered in this constituency yet.</p>
                       </div>
-                    ) : (
-                      <div className="p-6 bg-white border-t border-orange-200">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-gray-100">
-                          <div className="flex items-center gap-4">
-                            <div className="w-16 h-16 bg-orange-50 border-2 border-orange-200 rounded-2xl flex items-center justify-center p-2 flex-shrink-0">
-                              {selectedCandidate.partySymbolImage ? (
-                                <img
-                                  src={selectedCandidate.partySymbolImage}
-                                  alt={selectedCandidate.partyName}
-                                  className="w-full h-full object-contain"
-                                />
-                              ) : (
-                                <span className="text-3xl">{selectedCandidate.partySymbol}</span>
-                              )}
-                            </div>
-                            <div>
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <h4 className="text-xl font-black text-blue-900">{selectedCandidate.name}</h4>
-                                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-orange-100 text-orange-800">
-                                  {electionLabel(selectedCandidate.electionType)}
-                                </span>
-                              </div>
-                              <p className="text-sm font-semibold text-gray-600 mt-0.5">
-                                {selectedCandidate.partyName} {selectedCandidate.partyAbbr ? `(${selectedCandidate.partyAbbr})` : ''}
-                              </p>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => handleEdit(selectedCandidate)}
-                              className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm cursor-pointer"
-                            >
-                              <Pencil className="w-4 h-4" />
-                              Edit Candidate
-                            </button>
-                            <button
-                              onClick={() => setDeleteId(selectedCandidate.id)}
-                              className="flex items-center gap-1.5 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 transition-colors shadow-sm cursor-pointer"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                              Delete
-                            </button>
-                          </div>
+                    ) : candidatesToShow.length > 0 ? (
+                      <div className="divide-y-2 divide-orange-100">
+                        <div className="px-6 py-2.5 bg-orange-50 border-t border-orange-200 flex items-center justify-between">
+                          <span className="text-xs font-bold text-orange-950 uppercase tracking-wider">
+                            Showing {candidatesToShow.length} Candidate{candidatesToShow.length !== 1 ? 's' : ''} for {filterConstituency} ({filterState})
+                          </span>
                         </div>
-
-                        {/* Candidate Details Grid */}
-                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-5 pt-5 pb-6 border-b border-gray-100">
-                          <Detail label="Candidate Name" value={selectedCandidate.name} />
-                          <Detail label="Election Type" value={electionLabel(selectedCandidate.electionType)} />
-                          <Detail label="State / UT" value={selectedCandidate.state} />
-                          <Detail label="District" value={selectedCandidate.district} />
-                          <Detail label="Constituency" value={selectedCandidate.constituency} />
-                          <Detail label="Date of Birth" value={formatDobToDDMMYYYY(selectedCandidate.dob)} />
-                          <Detail label="Age" value={selectedCandidate.age ? `${selectedCandidate.age} years` : '—'} />
-                        </div>
-
-                        {/* Centered Party & Symbol Section */}
-                        <div className="pt-6 flex flex-col items-center justify-center text-center">
-                          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Party & Symbol</p>
-                          <div className="flex flex-col items-center justify-center p-6 bg-gray-50 rounded-2xl border-2 border-orange-200/80 w-full max-w-md shadow-sm">
-                            <div className="w-28 h-28 sm:w-32 sm:h-32 bg-white border-2 border-orange-300 rounded-2xl flex items-center justify-center p-3 mb-3 shadow-md">
-                              {selectedCandidate.partySymbolImage ? (
-                                <img
-                                  src={selectedCandidate.partySymbolImage}
-                                  alt={selectedCandidate.partyName}
-                                  className="w-full h-full object-contain"
-                                />
-                              ) : (
-                                <span className="text-7xl">{selectedCandidate.partySymbol}</span>
-                              )}
-                            </div>
-                            <span className="text-xs font-extrabold uppercase tracking-wider text-orange-600 block mb-1">
-                              Official Election Symbol
-                            </span>
-                            <h5 className="font-black text-blue-900 text-lg sm:text-xl leading-tight">
-                              {selectedCandidate.partyName}
-                            </h5>
-                            {selectedCandidate.partyAbbr && (
-                              <span className="inline-block mt-2 px-3 py-1 bg-blue-100 text-blue-800 text-xs font-bold rounded-full">
-                                {selectedCandidate.partyAbbr}
-                              </span>
-                            )}
-                          </div>
-                        </div>
+                        {candidatesToShow.map(c => (
+                          <CandidateCard
+                            key={c.id}
+                            candidate={c}
+                            handleEdit={handleEdit}
+                            setDeleteId={setDeleteId}
+                            electionLabel={electionLabel}
+                          />
+                        ))}
                       </div>
-                    )}
+                    ) : null}
                   </>
                 );
               })()}
@@ -760,6 +742,106 @@ function Detail({ label, value }: { label: string; value: string | undefined }) 
     <div>
       <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-0.5">{label}</p>
       <p className="text-sm font-semibold text-gray-800">{value || '—'}</p>
+    </div>
+  );
+}
+
+function CandidateCard({
+  candidate,
+  handleEdit,
+  setDeleteId,
+  electionLabel,
+}: {
+  candidate: Candidate;
+  handleEdit: (c: Candidate) => void;
+  setDeleteId: (id: number) => void;
+  electionLabel: (t: ElectionType) => string;
+}) {
+  return (
+    <div className="p-6 bg-white border-t border-orange-200">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-gray-100">
+        <div className="flex items-center gap-4">
+          <div className="w-16 h-16 bg-orange-50 border-2 border-orange-200 rounded-2xl flex items-center justify-center p-2 flex-shrink-0">
+            {candidate.partySymbolImage ? (
+              <img
+                src={candidate.partySymbolImage}
+                alt={candidate.partyName}
+                className="w-full h-full object-contain"
+              />
+            ) : (
+              <span className="text-3xl">{candidate.partySymbol}</span>
+            )}
+          </div>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h4 className="text-xl font-black text-blue-900">{candidate.name}</h4>
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-orange-100 text-orange-800">
+                {electionLabel(candidate.electionType)}
+              </span>
+            </div>
+            <p className="text-sm font-semibold text-gray-600 mt-0.5">
+              {candidate.partyName} {candidate.partyAbbr ? `(${candidate.partyAbbr})` : ''}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => handleEdit(candidate)}
+            className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm cursor-pointer"
+          >
+            <Pencil className="w-4 h-4" />
+            Edit Candidate
+          </button>
+          <button
+            onClick={() => setDeleteId(candidate.id)}
+            className="flex items-center gap-1.5 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 transition-colors shadow-sm cursor-pointer"
+          >
+            <Trash2 className="w-4 h-4" />
+            Delete
+          </button>
+        </div>
+      </div>
+
+      {/* Candidate Details Grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-5 pt-5 pb-6 border-b border-gray-100">
+        <Detail label="Candidate Name" value={candidate.name} />
+        <Detail label="Election Type" value={electionLabel(candidate.electionType)} />
+        <Detail label="State / UT" value={candidate.state} />
+        <Detail label="District" value={candidate.district} />
+        <Detail label="Constituency" value={candidate.constituency} />
+        <Detail label="Date of Birth" value={formatDobToDDMMYYYY(candidate.dob)} />
+        <Detail label="Age" value={candidate.age ? `${candidate.age} years` : '—'} />
+      </div>
+
+      {/* Centered Party & Symbol Section */}
+      <div className="pt-6 flex flex-col items-center justify-center text-center">
+        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Party & Symbol</p>
+        <div className="flex flex-col items-center justify-center p-6 bg-gray-50 rounded-2xl border-2 border-orange-200/80 w-full max-w-md shadow-sm">
+          <div className="w-28 h-28 sm:w-32 sm:h-32 bg-white border-2 border-orange-300 rounded-2xl flex items-center justify-center p-3 mb-3 shadow-md">
+            {candidate.partySymbolImage ? (
+              <img
+                src={candidate.partySymbolImage}
+                alt={candidate.partyName}
+                className="w-full h-full object-contain"
+              />
+            ) : (
+              <span className="text-7xl">{candidate.partySymbol}</span>
+            )}
+          </div>
+          <span className="text-xs font-extrabold uppercase tracking-wider text-orange-600 block mb-1">
+            Official Election Symbol
+          </span>
+          <h5 className="font-black text-blue-900 text-lg sm:text-xl leading-tight">
+            {candidate.partyName}
+          </h5>
+          {candidate.partyAbbr && (
+            <span className="inline-block mt-2 px-3 py-1 bg-blue-100 text-blue-800 text-xs font-bold rounded-full">
+              {candidate.partyAbbr}
+            </span>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

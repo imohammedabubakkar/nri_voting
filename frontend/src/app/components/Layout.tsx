@@ -6,8 +6,8 @@ interface LayoutProps {
 
 export function Layout({ children }: LayoutProps) {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-green-50">
-      <header className="bg-white border-b-4 border-orange-500 shadow-sm">
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-orange-50 via-white to-green-50">
+      <header className="bg-white border-b-4 border-orange-500 shadow-sm flex-shrink-0">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-center gap-3">
             <div className="w-12 h-12 bg-gradient-to-b from-orange-500 via-white to-green-600 rounded-full flex items-center justify-center">
@@ -21,11 +21,11 @@ export function Layout({ children }: LayoutProps) {
         </div>
       </header>
       
-      <main className="container mx-auto px-4 py-8">
+      <main className="flex-1 flex flex-col container mx-auto px-4 py-8">
         {children}
       </main>
       
-      <footer className="bg-blue-900 text-white py-6 mt-12">
+      <footer className="bg-blue-900 text-white py-6 mt-auto flex-shrink-0">
         <div className="container mx-auto px-4 text-center">
           <p className="text-sm">© 2026 Election Commission of India. All rights reserved.</p>
           <p className="text-xs mt-2 text-gray-300">Secure | Transparent | Democratic</p>

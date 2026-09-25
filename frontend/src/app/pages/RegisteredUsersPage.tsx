@@ -390,18 +390,8 @@ export function RegisteredUsersPage() {
               );
             }
 
-            // 3. User Details Hidden (Default state when neither searching nor selected)
-            return (
-              <div className="py-16 px-6 text-center bg-gray-50/70 rounded-xl border border-gray-200 mt-6">
-                <div className="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                  <UserCheck className="w-7 h-7 text-blue-700" />
-                </div>
-                <h4 className="text-base font-bold text-gray-800">User Details Hidden</h4>
-                <p className="text-sm text-gray-500 mt-1 max-w-md mx-auto">
-                  Type a name in the search box above or choose a voter from the <strong className="text-blue-700">"Select User to View Details"</strong> dropdown to view their details.
-                </p>
-              </div>
-            );
+            // 3. Default state when neither searching nor selected
+            return null;
           })()}
         </div>
       </div>

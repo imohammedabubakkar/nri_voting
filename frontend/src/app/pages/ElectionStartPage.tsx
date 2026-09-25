@@ -3,14 +3,20 @@ import { useNavigate } from 'react-router';
 import { Layout } from '../components/Layout';
 import {
   ArrowLeft, CalendarDays, Clock, Play, Square, CheckSquare, Building2,
-  Landmark, MapPin, AlertTriangle, CheckCircle2, Globe2,
+  Landmark, MapPin, AlertTriangle, CheckCircle2, Globe2, RotateCcw, Award,
 } from 'lucide-react';
 import { DISTRICTS_BY_STATE } from '../data/indiaData';
+import { CountryClockSelector } from '../components/RegionalClockCard';
+import { getCountryElectionStatus, getCountryFlag, computeLiveElectionStatus, checkAndAutoStopElection } from '../utils/timezoneUtils';
+import { resetConstituencyVoting, resetAllConstituencyVoting } from '../utils/voteUtils';
+import { Time12Input } from '../components/Time12Input';
 
 interface ElectionSchedule {
   date: string;
   fromTime: string;
   toTime: string;
+  resultDate: string;
+  resultTime: string;
   allConstituencies: boolean;
   state: string;
   district: string;
@@ -47,6 +53,8 @@ export function ElectionStartPage() {
   const [date, setDate] = useState('');
   const [fromTime, setFromTime] = useState('');
   const [toTime, setToTime] = useState('');
+  const [resultDate, setResultDate] = useState('');
+  const [resultTime, setResultTime] = useState('');
   const [allConstituencies, setAllConstituencies] = useState(true);
   const [state, setState] = useState('');
   const [district, setDistrict] = useState('');
@@ -55,10 +63,51 @@ export function ElectionStartPage() {
   const [errors, setErrors] = useState<string[]>([]);
   const [success, setSuccess] = useState(false);
   const [existing, setExisting] = useState<ElectionSchedule | null>(null);
+  const [previewCountry, setPreviewCountry] = useState('Australia');
+  const [previewCity, setPreviewCity] = useState('');
+  const [now, setNow] = useState(new Date());
 
+  // Live ticking clock (1-second precision) and automatic election stop checker
+  useEffect(() => {
+    const update = () => {
+      const current = new Date();
+      setNow(current);
+      checkAndAutoStopElection(current);
+      const saved = localStorage.getItem('electionSchedule');
+      if (saved) {
+        setExisting(JSON.parse(saved));
+      } else {
+        setExisting(null);
+      }
+    };
+
+    update();
+    const id = setInterval(update, 1000);
+    window.addEventListener('electionScheduleUpdated', update);
+    window.addEventListener('storage', update);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener('electionScheduleUpdated', update);
+      window.removeEventListener('storage', update);
+    };
+  }, []);
+
+  // Initialize input fields from existing schedule on mount
   useEffect(() => {
     const saved = localStorage.getItem('electionSchedule');
-    if (saved) setExisting(JSON.parse(saved));
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed.date) setDate(parsed.date);
+      if (parsed.fromTime) setFromTime(parsed.fromTime);
+      if (parsed.toTime) setToTime(parsed.toTime);
+      if (parsed.resultDate) setResultDate(parsed.resultDate);
+      if (parsed.resultTime) setResultTime(parsed.resultTime);
+      if (parsed.allConstituencies !== undefined) setAllConstituencies(parsed.allConstituencies);
+      if (parsed.state) setState(parsed.state);
+      if (parsed.district) setDistrict(parsed.district);
+      if (parsed.assemblyConstituency) setAssemblyConstituency(parsed.assemblyConstituency);
+      if (parsed.parliamentConstituency) setParliamentConstituency(parsed.parliamentConstituency);
+    }
   }, []);
 
   // Derive constituency options from registered candidates + users for this state/district
@@ -96,6 +145,8 @@ export function ElectionStartPage() {
     if (!fromTime) errs.push('Start time is required.');
     if (!toTime) errs.push('End time is required.');
     if (fromTime && toTime && fromTime >= toTime) errs.push('End time must be after start time.');
+    if (!resultDate) errs.push('Result release date (India Time) is required.');
+    if (!resultTime) errs.push('Result release time (India Time) is required.');
     if (!allConstituencies) {
       if (!state) errs.push('Please select a state.');
       if (!district) errs.push('Please select a district.');
@@ -114,6 +165,8 @@ export function ElectionStartPage() {
       date,
       fromTime,
       toTime,
+      resultDate,
+      resultTime,
       allConstituencies,
       state: allConstituencies ? '' : state,
       district: allConstituencies ? '' : district,
@@ -124,8 +177,24 @@ export function ElectionStartPage() {
     };
     localStorage.setItem('electionSchedule', JSON.stringify(schedule));
     setExisting(schedule);
+    window.dispatchEvent(new CustomEvent('electionScheduleUpdated', { detail: schedule }));
+
+    // Whenever an election is launched from this page, reset voting so vote starts
+    // from first (0 votes) for all candidates of the same constituency
+    if (allConstituencies) {
+      resetAllConstituencyVoting({ reason: 'Election started for all constituencies' });
+    } else {
+      resetConstituencyVoting({
+        state,
+        district,
+        assemblyConstituency,
+        parliamentConstituency,
+        reason: 'Election started for selected constituencies',
+      });
+    }
+
     setSuccess(true);
-    setTimeout(() => setSuccess(false), 3000);
+    setTimeout(() => setSuccess(false), 4000);
   }
 
   function handleStop() {
@@ -133,14 +202,17 @@ export function ElectionStartPage() {
     const updated: ElectionSchedule = { ...existing, status: 'ended' };
     localStorage.setItem('electionSchedule', JSON.stringify(updated));
     setExisting(updated);
+    window.dispatchEvent(new CustomEvent('electionScheduleUpdated', { detail: updated }));
   }
 
   function handleClear() {
     localStorage.removeItem('electionSchedule');
     setExisting(null);
     setDate(''); setFromTime(''); setToTime('');
+    setResultDate(''); setResultTime('');
     setState(''); setDistrict(''); setAssemblyConstituency(''); setParliamentConstituency('');
     setAllConstituencies(true);
+    window.dispatchEvent(new CustomEvent('electionScheduleUpdated', { detail: null }));
   }
 
   function handleStateChange(val: string) {
@@ -155,8 +227,27 @@ export function ElectionStartPage() {
     setParliamentConstituency('');
   }
 
-  const isActive = existing?.status === 'active';
-  const isEnded = existing?.status === 'ended';
+  const liveStatus = computeLiveElectionStatus(existing, now);
+  const isElectionActive = liveStatus === 'active';
+
+  const effectiveSchedule = existing || (date && fromTime && toTime && resultDate && resultTime ? {
+    date,
+    fromTime,
+    toTime,
+    resultDate,
+    resultTime,
+    status: 'active',
+    allConstituencies: true,
+    state: '',
+    district: '',
+    assemblyConstituency: '',
+    parliamentConstituency: '',
+    startedAt: Date.now(),
+  } as ElectionSchedule : null);
+
+  const countryPreview = effectiveSchedule && previewCountry
+    ? getCountryElectionStatus(effectiveSchedule, previewCountry, previewCity, now)
+    : null;
 
   return (
     <Layout>
@@ -183,23 +274,29 @@ export function ElectionStartPage() {
 
           <div className="p-8 space-y-8">
 
-            {/* ── CURRENT ELECTION STATUS ── */}
-            {existing && (
-              <div className={`rounded-xl border-2 p-5 ${isActive ? 'border-green-500 bg-green-50' : 'border-gray-300 bg-gray-50'}`}>
+            {/* ── CURRENT ELECTION STATUS (ONLY SHOWN DURING ELECTION TIME) ── */}
+            {existing && isElectionActive && (
+              <div className="rounded-xl border-2 p-5 border-green-500 bg-green-50">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex items-center gap-3">
-                    {isActive ? (
-                      <CheckCircle2 className="w-6 h-6 text-green-600 flex-shrink-0" />
-                    ) : (
-                      <Square className="w-6 h-6 text-gray-400 flex-shrink-0" />
-                    )}
+                    <CheckCircle2 className="w-6 h-6 text-green-600 flex-shrink-0" />
                     <div>
-                      <p className={`font-black text-base ${isActive ? 'text-green-700' : 'text-gray-500'}`}>
-                        {isActive ? 'Election is ACTIVE' : 'Election has ENDED'}
+                      <p className="font-black text-base text-green-700">
+                        Election is ACTIVE
                       </p>
                       <p className="text-sm text-gray-600 mt-0.5">
                         {formatDate(existing.date)} &nbsp;·&nbsp; {formatTime(existing.fromTime)} – {formatTime(existing.toTime)}
+                        <span className="ml-1 text-xs text-blue-600 font-semibold">(Country-Local Time)</span>
                       </p>
+                      {existing.resultDate && existing.resultTime && (
+                        <p className="text-xs text-green-700 font-semibold mt-1 flex items-center gap-1.5">
+                          <span className="text-sm">🇮🇳</span>
+                          <span>Result Release (IST):</span>
+                          <span className="font-bold text-green-800">
+                            {formatDate(existing.resultDate)} at {formatTime(existing.resultTime)} (India Time Only)
+                          </span>
+                        </p>
+                      )}
                       <p className="text-xs text-gray-500 mt-1">
                         Scope:{' '}
                         <span className="font-semibold">
@@ -214,18 +311,16 @@ export function ElectionStartPage() {
                   </div>
 
                   <div className="flex gap-2 flex-shrink-0">
-                    {isActive && (
-                      <button
-                        onClick={handleStop}
-                        className="flex items-center gap-1.5 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-bold transition-colors"
-                      >
-                        <Square className="w-4 h-4" />
-                        Stop
-                      </button>
-                    )}
+                    <button
+                      onClick={handleStop}
+                      className="flex items-center gap-1.5 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-bold transition-colors cursor-pointer"
+                    >
+                      <Square className="w-4 h-4" />
+                      Stop
+                    </button>
                     <button
                       onClick={handleClear}
-                      className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-sm font-bold transition-colors"
+                      className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-sm font-bold transition-colors cursor-pointer"
                     >
                       Clear
                     </button>
@@ -234,56 +329,195 @@ export function ElectionStartPage() {
               </div>
             )}
 
-            {/* ── ELECTION DATE & TIME ── */}
-            <div>
-              <h3 className="text-base font-black text-blue-900 mb-4 flex items-center gap-2 uppercase tracking-wide">
-                <CalendarDays className="w-5 h-5 text-orange-500" />
-                Election Date &amp; Time
-              </h3>
+            {/* ── LIVE REGIONAL CLOCK / WORLD TIME REFERENCE ── */}
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">
+                  Global Time &amp; Regional Status Inspector
+                </p>
+                {countryPreview && previewCountry && (
+                  <span className={`text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1.5 ${
+                    countryPreview.status === 'active'
+                      ? 'bg-green-100 text-green-700 border border-green-300'
+                      : countryPreview.status === 'not_started'
+                      ? 'bg-blue-100 text-blue-700 border border-blue-300'
+                      : 'bg-red-100 text-red-700 border border-red-300'
+                  }`}>
+                    <span>{getCountryFlag(previewCountry)}</span>
+                    <span>{previewCountry}:</span>
+                    <span className="uppercase">{countryPreview.status.replace('_', ' ')}</span>
+                    <span className="text-[11px] opacity-80 font-normal">({countryPreview.localFormattedTime12})</span>
+                  </span>
+                )}
+              </div>
+              <CountryClockSelector
+                defaultCountry={previewCountry}
+                onCountryChange={(c, city) => {
+                  setPreviewCountry(c);
+                  setPreviewCity(city || '');
+                }}
+              />
+            </div>
+
+            {/* ── ELECTION DATE & TIME (APPLIES TO EACH VOTER'S COUNTRY TIME) ── */}
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-base font-black text-blue-900 flex items-center gap-2 uppercase tracking-wide">
+                  <CalendarDays className="w-5 h-5 text-orange-500" />
+                  Election Date &amp; Time
+                </h3>
+                <span className="text-xs font-bold px-3 py-1 rounded-full bg-blue-100 text-blue-800 border border-blue-300 flex items-center gap-1.5 shadow-sm">
+                  <Globe2 className="w-3.5 h-3.5 text-blue-700" />
+                  <span>Applies to Each Voter's Respective Country Time</span>
+                </span>
+              </div>
+
+              <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900 flex items-start gap-2.5">
+                <span className="text-base leading-none">🌍</span>
+                <div>
+                  <p className="font-bold">Country-Local Voting Schedule (Not Indian Time)</p>
+                  <p className="text-blue-800 mt-0.5">
+                    Start time and end time apply directly to each NRI voter according to their respective registered country's local clock. For example, if you set <strong>9:00 AM – 5:00 PM</strong>, a voter in Australia votes 9:00 AM–5:00 PM Australian time, a voter in the UAE votes 9:00 AM–5:00 PM UAE time, and a voter in the USA votes 9:00 AM–5:00 PM US time.
+                  </p>
+                </div>
+              </div>
+
               <div className="grid sm:grid-cols-3 gap-4">
-                <div className="sm:col-span-3">
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">
-                    Date of Election
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5 flex items-center gap-1">
+                    <CalendarDays className="w-3.5 h-3.5 text-orange-500" /> Date of Election
                   </label>
                   <input
                     type="date"
                     value={date}
-                    onChange={e => setDate(e.target.value)}
+                    onChange={e => {
+                      setDate(e.target.value);
+                      if (!resultDate) setResultDate(e.target.value);
+                    }}
                     className={inputCls}
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5 flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5" /> From Time
-                  </label>
-                  <input
-                    type="time"
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wide flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5 text-orange-500" /> From Time (Start)
+                    </label>
+                    <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                      12-Hr · AM/PM
+                    </span>
+                  </div>
+                  <Time12Input
                     value={fromTime}
-                    onChange={e => setFromTime(e.target.value)}
-                    className={inputCls}
+                    onChange={setFromTime}
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5 flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5" /> To Time
-                  </label>
-                  <input
-                    type="time"
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wide flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5 text-orange-500" /> To Time (End)
+                    </label>
+                    <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                      12-Hr · AM/PM
+                    </span>
+                  </div>
+                  <Time12Input
                     value={toTime}
-                    onChange={e => setToTime(e.target.value)}
-                    className={inputCls}
+                    onChange={val => {
+                      setToTime(val);
+                      if (!resultTime) setResultTime(val);
+                    }}
                   />
                 </div>
+
                 {/* Preview */}
                 {(date || fromTime || toTime) && (
-                  <div className="sm:col-span-1 bg-blue-50 border-2 border-blue-200 rounded-lg p-3 flex flex-col justify-center">
-                    <p className="text-xs text-blue-500 font-semibold uppercase tracking-wide mb-1">Preview</p>
-                    {date && <p className="text-xs font-bold text-blue-900">{formatDate(date)}</p>}
-                    {(fromTime || toTime) && (
-                      <p className="text-sm font-black text-blue-700 mt-1">
-                        {formatTime(fromTime)} → {formatTime(toTime)}
+                  <div className="sm:col-span-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-3.5 flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs text-blue-600 font-bold uppercase tracking-wide">
+                        🌍 Country-Local Voting Window (Each Voter's Country Clock)
                       </p>
-                    )}
+                      <p className="text-sm font-black text-blue-950 mt-0.5">
+                        {date ? formatDate(date) : 'Date not set'} &nbsp;·&nbsp; {formatTime(fromTime)} → {formatTime(toTime)}
+                      </p>
+                      <p className="text-[11px] text-gray-500 mt-0.5">
+                        Every NRI voter will be able to cast their vote within this time window on their respective country clock.
+                      </p>
+                    </div>
+                    <span className="text-xs font-bold px-2.5 py-1 bg-blue-200 text-blue-800 rounded-md">
+                      Local Country Time
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* ── RESULT RELEASE DATE & TIME (STRICTLY INDIA TIME ONLY) ── */}
+            <div className="space-y-4 pt-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-base font-black text-blue-900 flex items-center gap-2 uppercase tracking-wide">
+                  <Award className="w-5 h-5 text-green-600" />
+                  Result Release Date &amp; Time
+                </h3>
+                <span className="text-xs font-bold px-3 py-1 rounded-full bg-orange-100 text-orange-800 border border-orange-300 flex items-center gap-1.5 shadow-sm">
+                  <span>🇮🇳</span>
+                  <span>India Standard Time (IST / GMT+5:30) Only</span>
+                </span>
+              </div>
+
+              <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-start gap-2.5">
+                <span className="text-base leading-none">ℹ️</span>
+                <div>
+                  <p className="font-bold">Strict India Standard Time Enforcement</p>
+                  <p className="text-amber-800 mt-0.5">
+                    Election results will only be unlocked and published strictly when the official clock in India reaches this scheduled release date and time. Local times in other countries will not release results earlier.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5 flex items-center gap-1">
+                    <CalendarDays className="w-3.5 h-3.5 text-green-600" /> Result Release Date (India Date)
+                  </label>
+                  <input
+                    type="date"
+                    value={resultDate}
+                    onChange={e => setResultDate(e.target.value)}
+                    className={inputCls}
+                  />
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wide flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5 text-green-600" /> Result Release Time (India IST)
+                    </label>
+                    <span className="text-[10px] font-bold text-green-700 bg-green-50 px-1.5 py-0.5 rounded border border-green-200">
+                      12-Hr · AM/PM
+                    </span>
+                  </div>
+                  <Time12Input
+                    value={resultTime}
+                    onChange={setResultTime}
+                  />
+                </div>
+
+                {/* Result Release Preview */}
+                {(resultDate || resultTime) && (
+                  <div className="sm:col-span-2 bg-green-50 border-2 border-green-200 rounded-lg p-3.5 flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="text-xs text-green-700 font-bold uppercase tracking-wide">
+                        🇮🇳 Scheduled Result Publication (India Standard Time)
+                      </p>
+                      <p className="text-sm font-black text-green-900 mt-0.5">
+                        {formatDate(resultDate)} &nbsp;·&nbsp; {formatTime(resultTime)} IST
+                      </p>
+                      <p className="text-[11px] text-green-800 mt-0.5">
+                        Results will be officially released simultaneously across all countries when India's clock reaches this IST time.
+                      </p>
+                    </div>
+                    <span className="text-xs font-bold px-2.5 py-1 bg-green-200 text-green-800 rounded-md">
+                      IST (GMT+5:30)
+                    </span>
                   </div>
                 )}
               </div>
@@ -416,9 +650,14 @@ export function ElectionStartPage() {
 
             {/* ── SUCCESS ── */}
             {success && (
-              <div className="bg-green-50 border-2 border-green-500 rounded-xl p-4 flex items-center gap-3">
-                <CheckCircle2 className="w-6 h-6 text-green-600 flex-shrink-0" />
-                <p className="font-bold text-green-700">Election has been started successfully!</p>
+              <div className="bg-green-50 border-2 border-green-500 rounded-xl p-4 flex items-start gap-3">
+                <CheckCircle2 className="w-6 h-6 text-green-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold text-green-800 text-base">Election has been started successfully!</p>
+                  <p className="text-green-700 text-sm mt-0.5">
+                    Voting has been reset to start fresh from first (0 votes) for all candidates in the scheduled constituencies, and all voters are ready to vote.
+                  </p>
+                </div>
               </div>
             )}
 
@@ -432,9 +671,17 @@ export function ElectionStartPage() {
                     <span className="font-bold text-blue-900">{formatDate(date)}</span>
                   </div>
                   <div>
-                    <span className="text-gray-500">Time:</span>{' '}
+                    <span className="text-gray-500">Time (Country Local):</span>{' '}
                     <span className="font-bold text-blue-900">{formatTime(fromTime)} → {formatTime(toTime)}</span>
                   </div>
+                  {resultDate && resultTime && (
+                    <div className="sm:col-span-2 pt-2 border-t border-blue-200 flex items-center justify-between">
+                      <span className="text-gray-500">Result Release (India Time):</span>
+                      <span className="font-bold text-green-800">
+                        {formatDate(resultDate)} &nbsp;·&nbsp; {formatTime(resultTime)} IST (GMT+5:30)
+                      </span>
+                    </div>
+                  )}
                   <div className="sm:col-span-2">
                     <span className="text-gray-500">Scope:</span>{' '}
                     <span className="font-bold text-blue-900">

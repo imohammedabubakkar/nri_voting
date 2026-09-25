@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router';
 import { Layout } from '../components/Layout';
-import { CheckCircle, AlertCircle } from 'lucide-react';
+import { CheckCircle, AlertCircle, Globe } from 'lucide-react';
 import { PARTY_SYMBOL_IMAGES } from '../data/partySymbolImages';
+import { getCountryElectionStatus } from '../utils/timezoneUtils';
 
 interface Candidate {
   id: number;
@@ -20,6 +21,9 @@ export function VoteConfirmationPage() {
   const location = useLocation();
   const selectedParty = location.state?.selectedParty as Candidate;
   const electionType: 'assembly' | 'parliament' = location.state?.electionType ?? selectedParty?.electionType ?? 'assembly';
+  const currentUser = JSON.parse(localStorage.getItem('currentUser') || 'null');
+  const votingCountry: string = location.state?.votingCountry || currentUser?.country || 'India';
+  const votingCity: string = location.state?.votingCity || currentUser?.currentPlace || '';
   const [isConfirming, setIsConfirming] = useState(false);
   const [isConfirmed, setIsConfirmed] = useState(false);
 
@@ -34,20 +38,12 @@ export function VoteConfirmationPage() {
   const electionLabel = electionType === 'assembly' ? 'Assembly Constituency' : 'Parliament Constituency';
 
   const handleConfirm = () => {
-    // Guard: verify election is still within time window before recording vote
-    const schedule = JSON.parse(localStorage.getItem('electionSchedule') || 'null') as {
-      date: string; fromTime: string; toTime: string; status: string;
-    } | null;
-    if (!schedule || schedule.status !== 'active') {
-      alert('No active election. Your vote cannot be submitted.');
-      navigate('/user/dashboard');
-      return;
-    }
-    const [y, mo, d] = schedule.date.split('-').map(Number);
-    const [toH, toM] = schedule.toTime.split(':').map(Number);
-    const electionEnd = new Date(y, mo - 1, d, toH, toM, 0);
-    if (new Date() > electionEnd) {
-      alert('Voting time has ended. Your vote cannot be submitted.');
+    // Guard: verify election is still within time window according to the voter's country timezone
+    const schedule = JSON.parse(localStorage.getItem('electionSchedule') || 'null');
+    const countryStatus = getCountryElectionStatus(schedule, votingCountry, votingCity, new Date());
+
+    if (countryStatus.status !== 'active') {
+      alert(countryStatus.message || `Voting is currently closed in ${votingCountry}. Your vote cannot be submitted.`);
       navigate('/user/dashboard');
       return;
     }
@@ -113,10 +109,14 @@ export function VoteConfirmationPage() {
               <p className="text-gray-600">Please review your selection before confirming</p>
             </div>
 
-            <div className="mb-4 text-center">
+            <div className="mb-4 flex flex-col items-center gap-1.5">
               <span className={`inline-block px-4 py-1.5 rounded-full text-sm font-bold text-white ${electionType === 'assembly' ? 'bg-blue-600' : 'bg-green-600'}`}>
                 {electionLabel}
               </span>
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 border border-blue-200 rounded-full text-xs font-semibold text-blue-800">
+                <Globe className="w-3.5 h-3.5 text-blue-600" />
+                <span>Voting from: <strong>{votingCountry}</strong> (Local country time applies)</span>
+              </div>
             </div>
 
             <div className="bg-gradient-to-br from-orange-50 to-green-50 rounded-lg p-8 mb-8 border-2 border-blue-900">

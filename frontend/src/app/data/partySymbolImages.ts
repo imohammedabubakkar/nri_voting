@@ -99,10 +99,14 @@ import chair from '../../imports/chair.png';
 import cyelec from '../../imports/cyelec.png';
 import pana from '../../imports/pana.png';
 import boatt from '../../imports/boatt.png';
+import nota from '../assets/party-symbols/nota.png';
 
-
+export { nota as NOTA_SYMBOL_IMAGE };
 
 export const PARTY_SYMBOL_IMAGES: Record<string, string> = {
+  'None of the Above (NOTA)': nota,
+  'NOTA': nota,
+  'None of the Above': nota,
   'All India Anna Dravida Munnetra Kazhagam': aiadmk,
   'Dravida Munnetra Kazhagam': dmk,
   'Janata Dal (Secular)': jdSecular,

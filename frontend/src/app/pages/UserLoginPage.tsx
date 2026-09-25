@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { Layout } from '../components/Layout';
-import { CheckCircle } from 'lucide-react';
+import { CheckCircle, ArrowLeft } from 'lucide-react';
 import { getBrowserTimeZone } from '../utils/timezoneUtils';
 
 const DEFAULT_DEMO_USERS = [
@@ -85,6 +85,13 @@ export function UserLoginPage() {
   return (
     <Layout>
       <div className="max-w-md mx-auto">
+        <button
+          onClick={() => navigate('/')}
+          className="flex items-center gap-2 text-blue-900 hover:text-blue-700 mb-6 font-semibold cursor-pointer"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back to Home
+        </button>
         <div className="bg-white rounded-2xl shadow-xl p-8 border-t-4 border-orange-500">
           <div className="text-center mb-8">
             <div className="w-16 h-16 bg-gradient-to-br from-orange-500 to-orange-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-orange-500/30">

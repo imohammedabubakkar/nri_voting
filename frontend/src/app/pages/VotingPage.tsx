@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router';
 import { Layout } from '../components/Layout';
 import { CheckCircle } from 'lucide-react';
 import { PARTY_SYMBOL_IMAGES } from '../data/partySymbolImages';
+import { ensureNotaCandidates } from '../utils/candidateUtils';
+import { getCountryElectionStatus } from '../utils/timezoneUtils';
 
 interface Candidate {
   id: number;
@@ -13,6 +15,7 @@ interface Candidate {
   partySymbolImage?: string;
   constituency: string;
   electionType: string;
+  isDefault?: boolean;
 }
 
 export function VotingPage() {
@@ -21,17 +24,30 @@ export function VotingPage() {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
 
   useEffect(() => {
+    const currentUser = JSON.parse(localStorage.getItem('currentUser') || 'null');
+    const schedule = JSON.parse(localStorage.getItem('electionSchedule') || 'null');
+    const countryStatus = getCountryElectionStatus(schedule, currentUser?.country || 'India', currentUser?.currentPlace || '', new Date());
+    if (countryStatus.status !== 'active') {
+      alert(countryStatus.message || 'Voting is not active at this time.');
+      navigate('/user/dashboard');
+      return;
+    }
+
     const stored: Candidate[] = JSON.parse(localStorage.getItem('registeredCandidates') || '[]');
-    // Re-resolve symbolImage from live imports (localStorage stores stale URLs after rebuilds)
-    const resolved = stored.map(c => ({
-      ...c,
-      partySymbolImage: PARTY_SYMBOL_IMAGES[c.partyName] ?? c.partySymbolImage ?? '',
-    }));
-    setCandidates(resolved);
-  }, []);
+    const resolved = ensureNotaCandidates(stored as any);
+    setCandidates(resolved as Candidate[]);
+  }, [navigate]);
 
   const handleContinue = () => {
     if (selectedId === null) return;
+    const currentUser = JSON.parse(localStorage.getItem('currentUser') || 'null');
+    const schedule = JSON.parse(localStorage.getItem('electionSchedule') || 'null');
+    const countryStatus = getCountryElectionStatus(schedule, currentUser?.country || 'India', currentUser?.currentPlace || '', new Date());
+    if (countryStatus.status !== 'active') {
+      alert(countryStatus.message || 'Voting is not active at this time.');
+      navigate('/user/dashboard');
+      return;
+    }
     const selected = candidates.find(c => c.id === selectedId);
     const votes = JSON.parse(localStorage.getItem('votesCast') || '0');
     localStorage.setItem('votesCast', JSON.stringify(votes + 1));

@@ -2,11 +2,13 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { Layout } from '../components/Layout';
 import {
-  Vote, MapPin, CreditCard, Globe, Home, User, CheckCircle,
-  Building2, Landmark, Clock, AlertTriangle, CalendarX, Lock,
+  Vote, MapPin, CreditCard, Globe, Home, User, CheckCircle, CheckCircle2,
+  Building2, Landmark, Clock, AlertTriangle, CalendarX, Lock, LogOut,
 } from 'lucide-react';
 import { PARTY_SYMBOL_IMAGES } from '../data/partySymbolImages';
 import { RegionalClockCard } from '../components/RegionalClockCard';
+import { getCountryElectionStatus, formatTime12 } from '../utils/timezoneUtils';
+import { ensureNotaCandidates, isNotaCandidate } from '../utils/candidateUtils';
 
 interface Candidate {
   id: number;
@@ -19,12 +21,15 @@ interface Candidate {
   electionType: string;
   state: string;
   district: string;
+  isDefault?: boolean;
 }
 
 interface ElectionSchedule {
   date: string;
   fromTime: string;
   toTime: string;
+  resultDate?: string;
+  resultTime?: string;
   allConstituencies: boolean;
   state: string;
   district: string;
@@ -66,13 +71,17 @@ function isElectionInScopeForUser(
   if (electionType === 'assembly') {
     // If admin specified an assembly constituency, user must match it
     if (schedule.assemblyConstituency) {
-      return schedule.assemblyConstituency === user.assemblyConstituency;
+      return (
+        (schedule.assemblyConstituency || '').trim().toUpperCase() ===
+        (user.assemblyConstituency || '').trim().toUpperCase()
+      );
     }
     // Admin scheduled only parliament, not assembly
     return !schedule.parliamentConstituency; // if neither set, allow all
   } else {
     if (schedule.parliamentConstituency) {
-      return schedule.parliamentConstituency === (user.parliamentConstituency || user.constituency);
+      const userParliament = (user.parliamentConstituency || user.constituency || '').trim().toUpperCase();
+      return (schedule.parliamentConstituency || '').trim().toUpperCase() === userParliament;
     }
     return !schedule.assemblyConstituency;
   }
@@ -86,11 +95,22 @@ function formatTime(t: string) {
 }
 
 /* ── Election gate banner shown inside each vote section ── */
-function ElectionGate({ status, fromTime, toTime, date }: {
+function ElectionGate({
+  status,
+  fromTime,
+  toTime,
+  date,
+  countryName,
+  timeZoneLabel,
+  currentLocalTime,
+}: {
   status: ElectionStatus;
   fromTime?: string;
   toTime?: string;
   date?: string;
+  countryName?: string;
+  timeZoneLabel?: string;
+  currentLocalTime?: string;
 }) {
   const formattedDate = date
     ? new Date(date + 'T00:00:00').toLocaleDateString('en-IN', {
@@ -116,14 +136,20 @@ function ElectionGate({ status, fromTime, toTime, date }: {
         <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
           <Clock className="w-8 h-8 text-blue-500" />
         </div>
-        <h4 className="text-lg font-black text-blue-700 mb-2">Voting Has Not Started Yet</h4>
+        <h4 className="text-lg font-black text-blue-700 mb-2">Voting Has Not Started Yet in {countryName || 'Your Country'}</h4>
         {formattedDate && (
           <p className="text-blue-600 font-semibold text-sm mb-1">{formattedDate}</p>
         )}
         {fromTime && (
-          <p className="text-gray-500 text-sm">
+          <p className="text-gray-600 text-sm">
             Voting opens at <span className="font-bold text-blue-700">{formatTime(fromTime)}</span>
             {toTime && <> and closes at <span className="font-bold text-blue-700">{formatTime(toTime)}</span></>}
+            {' '}<span className="text-xs font-semibold text-blue-600">({countryName} Local Time)</span>
+          </p>
+        )}
+        {currentLocalTime && (
+          <p className="text-xs text-gray-500 mt-2">
+            Current local time in {countryName}: <span className="font-semibold text-gray-700">{currentLocalTime}</span> ({timeZoneLabel})
           </p>
         )}
       </div>
@@ -136,13 +162,19 @@ function ElectionGate({ status, fromTime, toTime, date }: {
         <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
           <CalendarX className="w-8 h-8 text-red-500" />
         </div>
-        <h4 className="text-lg font-black text-red-600 mb-2">Voting Time Has Ended</h4>
+        <h4 className="text-lg font-black text-red-600 mb-2">Voting Time Has Ended in {countryName || 'Your Country'}</h4>
         {toTime && (
-          <p className="text-gray-500 text-sm">
-            Voting closed at <span className="font-bold text-red-600">{formatTime(toTime)}</span>.
+          <p className="text-gray-600 text-sm">
+            Voting closed at <span className="font-bold text-red-600">{formatTime(toTime)}</span>
+            {' '}<span className="text-xs font-semibold text-red-500">({countryName} Local Time)</span>.
           </p>
         )}
-        <p className="text-gray-400 text-sm mt-1">No more votes can be cast for this election.</p>
+        {currentLocalTime && (
+          <p className="text-xs text-gray-500 mt-1">
+            Current local time in {countryName}: <span className="font-semibold text-gray-700">{currentLocalTime}</span>
+          </p>
+        )}
+        <p className="text-gray-400 text-sm mt-1">No more votes can be cast for this election in {countryName}.</p>
       </div>
     );
   }
@@ -201,7 +233,7 @@ function CandidateCard({ c, selectedId, onSelect }: {
 function VoteSection({
   title, icon: Icon, accentColor, constituencyName, candidates,
   selectedId, onSelect, hasVoted, onConfirm,
-  electionStatus, schedule,
+  electionStatus, schedule, countryName, timeZoneLabel, currentLocalTime,
 }: {
   title: string;
   icon: React.ElementType;
@@ -214,6 +246,9 @@ function VoteSection({
   onConfirm: () => void;
   electionStatus: ElectionStatus;
   schedule: ElectionSchedule | null;
+  countryName?: string;
+  timeZoneLabel?: string;
+  currentLocalTime?: string;
 }) {
   const selected = candidates.find(c => c.id === selectedId);
   const canVote = electionStatus === 'active';
@@ -233,14 +268,14 @@ function VoteSection({
           <div className="flex items-center gap-1.5 bg-green-100 border border-green-400 rounded-full px-3 py-1">
             <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
             <span className="text-xs font-bold text-green-700">
-              Voting Open · Closes {formatTime(schedule.toTime)}
+              Voting Open in {countryName || 'Local Region'} · Closes {formatTime(schedule.toTime)}
             </span>
           </div>
         )}
         {electionStatus === 'ended' && (
           <div className="flex items-center gap-1.5 bg-red-100 border border-red-300 rounded-full px-3 py-1">
             <CalendarX className="w-3.5 h-3.5 text-red-500" />
-            <span className="text-xs font-bold text-red-600">Voting Closed</span>
+            <span className="text-xs font-bold text-red-600">Voting Closed in {countryName || 'Local Region'}</span>
           </div>
         )}
       </div>
@@ -256,12 +291,15 @@ function VoteSection({
             <p className="text-gray-500 text-sm">You have already cast your vote for this election.</p>
           </div>
         ) : !canVote ? (
-          /* Election gate — blocks voting when not active */
+          /* Election gate — blocks voting when not active in this country */
           <ElectionGate
             status={electionStatus}
             fromTime={schedule?.fromTime}
             toTime={schedule?.toTime}
             date={schedule?.date}
+            countryName={countryName}
+            timeZoneLabel={timeZoneLabel}
+            currentLocalTime={currentLocalTime}
           />
         ) : !constituencyName ? (
           <div className="text-center py-10 text-gray-400">
@@ -312,13 +350,38 @@ function VoteSection({
 export function UserDashboardPage() {
   const navigate = useNavigate();
   const [now, setNow] = useState(new Date());
+  const [tick, setTick] = useState(0);
   const [selectedAssemblyId, setSelectedAssemblyId] = useState<number | null>(null);
   const [selectedParliamentId, setSelectedParliamentId] = useState<number | null>(null);
   const [assemblyCandidates, setAssemblyCandidates] = useState<Candidate[]>([]);
   const [parliamentCandidates, setParliamentCandidates] = useState<Candidate[]>([]);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
-  const user = JSON.parse(localStorage.getItem('currentUser') || 'null');
+  const handleLogout = () => {
+    localStorage.removeItem('currentUser');
+    localStorage.removeItem('userToken');
+    navigate('/user/login');
+  };
+
+  // Synchronize currentUser with registeredUsers so any constituency vote reset is immediately reflected
+  const rawCurrentUser = JSON.parse(localStorage.getItem('currentUser') || 'null');
+  const registeredUsers: any[] = JSON.parse(localStorage.getItem('registeredUsers') || '[]');
+  const matchedUser = rawCurrentUser
+    ? registeredUsers.find((u: any) => u.aadhaar && u.aadhaar === rawCurrentUser.aadhaar)
+    : null;
+  const user = matchedUser
+    ? {
+        ...rawCurrentUser,
+        hasVotedAssembly: !!matchedUser.hasVotedAssembly,
+        hasVotedParliament: !!matchedUser.hasVotedParliament,
+      }
+    : rawCurrentUser;
+
   const schedule: ElectionSchedule | null = JSON.parse(localStorage.getItem('electionSchedule') || 'null');
+
+  // Voter's country and city are taken directly from their registered profile
+  const voterCountry: string = user?.country || 'India';
+  const voterCity: string = user?.currentPlace || '';
 
   // Live ticking clock (1-second precision) for regional time and election gate reactions
   useEffect(() => {
@@ -326,20 +389,40 @@ export function UserDashboardPage() {
     return () => clearInterval(id);
   }, []);
 
+  // Listen for vote reset and storage events to ensure real-time reactive update
+  useEffect(() => {
+    const onResetOrStorage = () => {
+      setTick(t => t + 1);
+      setSelectedAssemblyId(null);
+      setSelectedParliamentId(null);
+    };
+    window.addEventListener('storage', onResetOrStorage);
+    window.addEventListener('constituency_vote_reset', onResetOrStorage);
+    return () => {
+      window.removeEventListener('storage', onResetOrStorage);
+      window.removeEventListener('constituency_vote_reset', onResetOrStorage);
+    };
+  }, []);
+
   useEffect(() => {
     if (!user) return;
     const stored: Candidate[] = JSON.parse(localStorage.getItem('registeredCandidates') || '[]');
-    const resolved = stored.map(c => ({
-      ...c,
-      partySymbolImage: PARTY_SYMBOL_IMAGES[c.partyName] ?? c.partySymbolImage ?? '',
-    }));
-    setAssemblyCandidates(
-      resolved.filter(c => c.electionType === 'assembly' && c.constituency?.trim().toUpperCase() === user.assemblyConstituency?.trim().toUpperCase())
+    const resolved = ensureNotaCandidates(stored as any);
+
+    const assemblyFiltered = resolved.filter(
+      c => c.electionType === 'assembly' && c.constituency?.trim().toUpperCase() === user.assemblyConstituency?.trim().toUpperCase()
     );
-    setParliamentCandidates(
-      resolved.filter(c => c.electionType === 'parliament' && c.constituency?.trim().toUpperCase() === (user.parliamentConstituency || user.constituency)?.trim().toUpperCase())
+    // If no candidate is assigned to assembly constituency, do not show NOTA either!
+    const hasRealAssembly = assemblyFiltered.some(c => !isNotaCandidate(c));
+    setAssemblyCandidates(hasRealAssembly ? assemblyFiltered : []);
+
+    const parliamentFiltered = resolved.filter(
+      c => c.electionType === 'parliament' && c.constituency?.trim().toUpperCase() === (user.parliamentConstituency || user.constituency)?.trim().toUpperCase()
     );
-  }, []);
+    // If no candidate is assigned to parliament constituency, do not show NOTA either!
+    const hasRealParliament = parliamentFiltered.some(c => !isNotaCandidate(c));
+    setParliamentCandidates(hasRealParliament ? parliamentFiltered : []);
+  }, [tick, user?.assemblyConstituency, user?.parliamentConstituency]);
 
   if (!user) {
     return (
@@ -354,8 +437,10 @@ export function UserDashboardPage() {
     );
   }
 
-  // Derive per-section election status
-  const globalStatus = getElectionStatus(schedule, now);
+  // Derive per-section election status based on voter's registered country local time (not Indian time)
+  const countryElection = getCountryElectionStatus(schedule, voterCountry, voterCity, now);
+  const globalStatus: ElectionStatus = countryElection.status;
+
   const assemblyStatus: ElectionStatus =
     globalStatus !== 'active' ? globalStatus
     : isElectionInScopeForUser(schedule, user, 'assembly') ? 'active' : 'not_in_scope';
@@ -364,17 +449,24 @@ export function UserDashboardPage() {
     : isElectionInScopeForUser(schedule, user, 'parliament') ? 'active' : 'not_in_scope';
 
   function handleConfirm(type: 'assembly' | 'parliament') {
-    // Re-validate election is still active at confirm time
-    const currentStatus = getElectionStatus(schedule, new Date());
-    if (currentStatus !== 'active') {
-      alert('Voting time has ended. Your vote cannot be submitted.');
+    // Re-validate election is still active in voter's country timezone at confirm time
+    const currentStatus = getCountryElectionStatus(schedule, voterCountry, voterCity, new Date());
+    if (currentStatus.status !== 'active') {
+      alert(currentStatus.message || 'Voting time has ended. Your vote cannot be submitted.');
       return;
     }
     const selectedId = type === 'assembly' ? selectedAssemblyId : selectedParliamentId;
     const pool = type === 'assembly' ? assemblyCandidates : parliamentCandidates;
     const selected = pool.find(c => c.id === selectedId);
     if (!selected) return;
-    navigate('/user/vote-confirmation', { state: { selectedParty: selected, electionType: type } });
+    navigate('/user/vote-confirmation', {
+      state: {
+        selectedParty: selected,
+        electionType: type,
+        votingCountry: voterCountry,
+        votingCity: voterCity,
+      },
+    });
   }
 
   const cards = [
@@ -390,24 +482,114 @@ export function UserDashboardPage() {
 
         {/* Voter Info */}
         <div className="bg-white rounded-lg shadow-xl p-8 border-t-4 border-orange-500">
-          <h2 className="text-3xl font-bold text-blue-900 mb-6 text-center">Voter Dashboard</h2>
-
-          {/* Live Regional Clock & Date (12-hour format with seconds based on voter's country/region) */}
-          <RegionalClockCard country={user.country} city={user.currentPlace} currentTime={now} />
-
-          {/* Election status banner */}
-          {globalStatus !== 'active' && globalStatus !== 'no_election' && (
-            <div className={`mb-6 rounded-xl border-2 p-4 flex items-center gap-3 ${
-              globalStatus === 'ended' ? 'bg-red-50 border-red-400' : 'bg-blue-50 border-blue-300'
-            }`}>
-              {globalStatus === 'ended'
-                ? <CalendarX className="w-5 h-5 text-red-500 flex-shrink-0" />
-                : <Clock className="w-5 h-5 text-blue-500 flex-shrink-0" />}
-              <p className={`text-sm font-semibold ${globalStatus === 'ended' ? 'text-red-700' : 'text-blue-700'}`}>
-                {globalStatus === 'ended'
-                  ? `Voting has ended. Polls closed at ${formatTime(schedule?.toTime || '')}.`
-                  : `Election scheduled — voting opens at ${formatTime(schedule?.fromTime || '')} on ${schedule?.date ? new Date(schedule.date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : ''}.`}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <div>
+              <h2 className="text-3xl font-bold text-blue-900">Voter Dashboard</h2>
+              <p className="text-gray-500 text-sm mt-0.5">
+                Welcome, <span className="font-semibold text-gray-800">{user.name}</span>
               </p>
+            </div>
+            <button
+              onClick={() => setShowLogoutModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-bold rounded-lg shadow-sm hover:shadow-md transition-all cursor-pointer self-start sm:self-auto text-sm"
+            >
+              <LogOut className="w-4 h-4" />
+              Logout
+            </button>
+          </div>
+
+          {/* Live Regional Clock & Date (12-hour format with seconds based on voter's registered country) */}
+          <RegionalClockCard
+            country={voterCountry}
+            city={voterCity}
+            currentTime={now}
+            showCountrySelect={false}
+          />
+
+          {/* Real-time Country Election Status Banner */}
+          {globalStatus === 'active' && (
+            <div className="mb-6 rounded-xl border-2 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-green-50 border-green-400">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0 animate-pulse text-white">
+                  <CheckCircle2 className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-black text-green-800 text-base">
+                      Voting is LIVE in {countryElection.country}
+                    </span>
+                    <span className="px-2 py-0.5 bg-green-600 text-white text-[11px] font-black rounded uppercase">
+                      Open
+                    </span>
+                  </div>
+                  <p className="text-xs text-green-700 mt-0.5">
+                    Polls open from {countryElection.fromTimeFormatted} to {countryElection.toTimeFormatted} local time ({countryElection.timeZoneLabel} · {countryElection.gmtOffset}).
+                  </p>
+                </div>
+              </div>
+              <div className="text-left sm:text-right flex-shrink-0 text-xs text-green-800 font-bold bg-white/80 px-3 py-1.5 rounded-lg border border-green-200">
+                Local Time: {countryElection.localFormattedTime12}
+              </div>
+            </div>
+          )}
+
+          {globalStatus === 'not_started' && (
+            <div className="mb-6 rounded-xl border-2 p-4 flex items-center gap-3 bg-blue-50 border-blue-300">
+              <Clock className="w-6 h-6 text-blue-500 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-bold text-blue-800">
+                  Voting Has Not Started Yet in {countryElection.country}
+                </p>
+                <p className="text-xs text-blue-600 mt-0.5">
+                  {countryElection.message}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {globalStatus === 'ended' && (
+            <div className="mb-6 rounded-xl border-2 p-4 flex items-center gap-3 bg-red-50 border-red-400">
+              <CalendarX className="w-6 h-6 text-red-500 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-bold text-red-800">
+                  Voting Time Has Ended in {countryElection.country}
+                </p>
+                <p className="text-xs text-red-600 mt-0.5">
+                  {countryElection.message}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Official Result Release Schedule Notice (Strictly India Time) */}
+          {schedule?.resultDate && schedule?.resultTime && (
+            <div className="mb-6 rounded-xl border-2 border-indigo-200 bg-gradient-to-r from-indigo-50 to-blue-50 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-sm shrink-0">
+                  🇮🇳
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-indigo-950 text-sm">
+                      Official Election Result Declaration
+                    </span>
+                    <span className="px-2 py-0.5 bg-indigo-200 text-indigo-900 rounded font-black uppercase text-[10px]">
+                      IST Only
+                    </span>
+                  </div>
+                  <p className="text-indigo-800 mt-0.5">
+                    Scheduled on <strong>{new Date(schedule.resultDate + 'T00:00:00').toLocaleDateString('en-IN', {
+                      weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
+                    })}</strong> at <strong>{formatTime12(schedule.resultTime)}</strong> (India Standard Time - GMT+5:30).
+                  </p>
+                  <p className="text-[11px] text-gray-500 mt-0.5">
+                    Results are published simultaneously across all nations strictly when India reaches this scheduled time.
+                  </p>
+                </div>
+              </div>
+              <span className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg font-bold uppercase tracking-wider text-[10px] shrink-0 self-start sm:self-auto shadow-sm">
+                India Clock Locked
+              </span>
             </div>
           )}
 
@@ -491,6 +673,9 @@ export function UserDashboardPage() {
           onConfirm={() => handleConfirm('assembly')}
           electionStatus={assemblyStatus}
           schedule={schedule}
+          countryName={countryElection.country}
+          timeZoneLabel={countryElection.timeZoneLabel}
+          currentLocalTime={countryElection.localFormattedTime12}
         />
 
         {/* Parliament Election */}
@@ -506,7 +691,41 @@ export function UserDashboardPage() {
           onConfirm={() => handleConfirm('parliament')}
           electionStatus={parliamentStatus}
           schedule={schedule}
+          countryName={countryElection.country}
+          timeZoneLabel={countryElection.timeZoneLabel}
+          currentLocalTime={countryElection.localFormattedTime12}
         />
+
+        {/* ── LOGOUT CONFIRMATION MODAL ── */}
+        {showLogoutModal && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 text-center border-t-4 border-red-600 animate-in fade-in zoom-in-95 duration-150">
+              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 text-red-600">
+                <LogOut className="w-6 h-6" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900 mb-2">Confirm Logout</h3>
+              <p className="text-sm text-gray-600 mb-6">
+                Are you sure you want to log out of the Voter Dashboard?
+              </p>
+              <div className="flex gap-3 justify-center">
+                <button
+                  type="button"
+                  onClick={() => setShowLogoutModal(false)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-bold shadow transition-colors cursor-pointer"
+                >
+                  Yes, Logout
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
       </div>
     </Layout>

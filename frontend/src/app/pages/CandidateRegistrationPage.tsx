@@ -5,6 +5,7 @@ import { ArrowLeft, UserPlus, Pencil, Trash2, X } from 'lucide-react';
 import { DISTRICTS_BY_STATE } from '../data/indiaData';
 import { PARTIES, Party } from '../data/partiesData';
 import { PARTY_SYMBOL_IMAGES } from '../data/partySymbolImages';
+import { ensureNotaCandidates, isNotaCandidate } from '../utils/candidateUtils';
 
 type ElectionType = 'assembly' | 'parliament' | '';
 
@@ -21,6 +22,7 @@ export interface Candidate {
   partySymbol: string;
   partyAbbr: string;
   partySymbolImage?: string;
+  isDefault?: boolean;
 }
 
 const ALL_STATES = Object.keys(DISTRICTS_BY_STATE).sort();
@@ -98,12 +100,8 @@ export function CandidateRegistrationPage() {
 
   useEffect(() => {
     const stored: Candidate[] = JSON.parse(localStorage.getItem('registeredCandidates') || '[]');
-    // Re-resolve symbolImage from live Vite imports — localStorage URLs go stale after rebuilds
-    setCandidates(stored.map(c => ({
-      ...c,
-      constituency: (c.constituency || '').toUpperCase(),
-      partySymbolImage: PARTY_SYMBOL_IMAGES[c.partyName] ?? c.partySymbolImage ?? '',
-    })));
+    const withNota = ensureNotaCandidates(stored as any);
+    setCandidates(withNota as Candidate[]);
   }, []);
 
   // Derive constituency options from registered voters
@@ -145,7 +143,7 @@ export function CandidateRegistrationPage() {
       .map(c => c.partyName)
   );
 
-  const availableParties = PARTIES.filter(p => !usedPartyNames.has(p.name));
+  const availableParties = PARTIES.filter(p => !usedPartyNames.has(p.name) && p.abbr !== 'NOTA');
 
   function set(field: string, value: string) {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -191,8 +189,9 @@ export function CandidateRegistrationPage() {
   }
 
   function saveToStorage(list: Candidate[]) {
-    localStorage.setItem('registeredCandidates', JSON.stringify(list));
-    setCandidates(list);
+    const withNota = ensureNotaCandidates(list as any);
+    localStorage.setItem('registeredCandidates', JSON.stringify(withNota));
+    setCandidates(withNota as Candidate[]);
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -757,6 +756,8 @@ function CandidateCard({
   setDeleteId: (id: number) => void;
   electionLabel: (t: ElectionType) => string;
 }) {
+  const isNota = isNotaCandidate(candidate);
+
   return (
     <div className="p-6 bg-white border-t border-orange-200">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-gray-100">
@@ -765,7 +766,7 @@ function CandidateCard({
             {candidate.partySymbolImage ? (
               <img
                 src={candidate.partySymbolImage}
-                alt={candidate.partyName}
+                alt={candidate.partyName || candidate.name}
                 className="w-full h-full object-contain"
               />
             ) : (
@@ -780,38 +781,56 @@ function CandidateCard({
               </span>
             </div>
             <p className="text-sm font-semibold text-gray-600 mt-0.5">
-              {candidate.partyName} {candidate.partyAbbr ? `(${candidate.partyAbbr})` : ''}
+              {isNota ? (
+                <>Abbreviation: <span className="font-bold text-blue-900">NOTA</span></>
+              ) : (
+                <>{candidate.partyName} {candidate.partyAbbr ? `(${candidate.partyAbbr})` : ''}</>
+              )}
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => handleEdit(candidate)}
-            className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm cursor-pointer"
-          >
-            <Pencil className="w-4 h-4" />
-            Edit Candidate
-          </button>
-          <button
-            onClick={() => setDeleteId(candidate.id)}
-            className="flex items-center gap-1.5 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 transition-colors shadow-sm cursor-pointer"
-          >
-            <Trash2 className="w-4 h-4" />
-            Delete
-          </button>
+          {candidate.isDefault || isNota ? (
+            <span className="px-3.5 py-1.5 bg-gray-100 text-gray-700 font-bold text-xs rounded-lg border border-gray-300 flex items-center gap-1.5 shadow-sm">
+              <span className="w-2 h-2 rounded-full bg-orange-500"></span>
+              Default Statutory Candidate (NOTA)
+            </span>
+          ) : (
+            <>
+              <button
+                onClick={() => handleEdit(candidate)}
+                className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm cursor-pointer"
+              >
+                <Pencil className="w-4 h-4" />
+                Edit Candidate
+              </button>
+              <button
+                onClick={() => setDeleteId(candidate.id)}
+                className="flex items-center gap-1.5 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 transition-colors shadow-sm cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete
+              </button>
+            </>
+          )}
         </div>
       </div>
 
       {/* Candidate Details Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-5 pt-5 pb-6 border-b border-gray-100">
         <Detail label="Candidate Name" value={candidate.name} />
+        {isNota && <Detail label="Abbreviation" value="NOTA" />}
         <Detail label="Election Type" value={electionLabel(candidate.electionType)} />
         <Detail label="State / UT" value={candidate.state} />
         <Detail label="District" value={candidate.district} />
         <Detail label="Constituency" value={candidate.constituency} />
-        <Detail label="Date of Birth" value={formatDobToDDMMYYYY(candidate.dob)} />
-        <Detail label="Age" value={candidate.age ? `${candidate.age} years` : '—'} />
+        {!isNota && (
+          <>
+            <Detail label="Date of Birth" value={formatDobToDDMMYYYY(candidate.dob)} />
+            <Detail label="Age" value={candidate.age ? `${candidate.age} years` : '—'} />
+          </>
+        )}
       </div>
 
       {/* Centered Party & Symbol Section */}
@@ -822,7 +841,7 @@ function CandidateCard({
             {candidate.partySymbolImage ? (
               <img
                 src={candidate.partySymbolImage}
-                alt={candidate.partyName}
+                alt={candidate.name}
                 className="w-full h-full object-contain"
               />
             ) : (
@@ -833,13 +852,11 @@ function CandidateCard({
             Official Election Symbol
           </span>
           <h5 className="font-black text-blue-900 text-lg sm:text-xl leading-tight">
-            {candidate.partyName}
+            {candidate.name}
           </h5>
-          {candidate.partyAbbr && (
-            <span className="inline-block mt-2 px-3 py-1 bg-blue-100 text-blue-800 text-xs font-bold rounded-full">
-              {candidate.partyAbbr}
-            </span>
-          )}
+          <span className="inline-block mt-2 px-3 py-1 bg-blue-100 text-blue-800 text-xs font-bold rounded-full">
+            {candidate.partyAbbr || 'NOTA'}
+          </span>
         </div>
       </div>
     </div>

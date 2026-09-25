@@ -1,7 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { Layout } from '../components/Layout';
 import { UserPlus, Users, BarChart3, Download, Vote, Play, CheckCircle2, Square, Clock, LogOut } from 'lucide-react';
+import { RegionalClockCard } from '../components/RegionalClockCard';
+
+import { computeLiveElectionStatus, checkAndAutoStopElection } from '../utils/timezoneUtils';
 
 function formatTime(t: string) {
   if (!t) return '—';
@@ -13,20 +16,44 @@ function formatTime(t: string) {
 export function AdminDashboardPage() {
   const navigate = useNavigate();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [now, setNow] = useState(new Date());
+  const [schedule, setSchedule] = useState<{
+    date: string; fromTime: string; toTime: string; status: string;
+    resultDate?: string; resultTime?: string;
+    allConstituencies: boolean; state?: string; district?: string;
+    assemblyConstituency?: string; parliamentConstituency?: string;
+  } | null>(() => {
+    return JSON.parse(localStorage.getItem('electionSchedule') || 'null');
+  });
+
+  // Live ticking clock (1-second precision) and automatic election stop checker
+  useEffect(() => {
+    const update = () => {
+      const current = new Date();
+      setNow(current);
+      checkAndAutoStopElection(current);
+      const raw = localStorage.getItem('electionSchedule');
+      setSchedule(raw ? JSON.parse(raw) : null);
+    };
+
+    update();
+    const id = setInterval(update, 1000);
+    window.addEventListener('electionScheduleUpdated', update);
+    window.addEventListener('storage', update);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener('electionScheduleUpdated', update);
+      window.removeEventListener('storage', update);
+    };
+  }, []);
 
   const handleLogout = () => {
     localStorage.removeItem('isAdminLoggedIn');
     navigate('/admin/login');
   };
 
-  const electionSchedule = JSON.parse(localStorage.getItem('electionSchedule') || 'null') as {
-    date: string; fromTime: string; toTime: string; status: string;
-    allConstituencies: boolean; state?: string; district?: string;
-    assemblyConstituency?: string; parliamentConstituency?: string;
-  } | null;
-
-  const isElectionActive = electionSchedule?.status === 'active';
-  const isElectionEnded = electionSchedule?.status === 'ended';
+  const liveStatus = computeLiveElectionStatus(schedule, now);
+  const isElectionActive = liveStatus === 'active';
 
   const dashboardCards = [
     {
@@ -76,7 +103,7 @@ export function AdminDashboardPage() {
   return (
     <Layout>
       <div className="max-w-6xl mx-auto">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
             <h2 className="text-3xl font-bold text-blue-900">Admin Dashboard</h2>
             <p className="text-gray-600 mt-2">Manage the NRI voting system</p>
@@ -90,53 +117,57 @@ export function AdminDashboardPage() {
           </button>
         </div>
 
-        {/* ── ELECTION STATUS BANNER ── */}
-        {electionSchedule && (
+        {/* Live Regional Clock (Indian Standard Time) */}
+        <RegionalClockCard
+          country="India"
+          city="New Delhi"
+          currentTime={now}
+          showCountrySelect={false}
+        />
+
+        {/* ── ELECTION STATUS BANNER (ONLY SHOWN DURING ELECTION TIME) ── */}
+        {schedule && isElectionActive && (
           <div
             onClick={() => navigate('/admin/election-start')}
-            className={`mb-6 rounded-xl border-2 p-5 cursor-pointer hover:shadow-md transition-shadow
-              ${isElectionActive
-                ? 'bg-green-50 border-green-500'
-                : isElectionEnded
-                ? 'bg-gray-50 border-gray-300'
-                : 'bg-yellow-50 border-yellow-400'}`}
+            className="mb-6 rounded-xl border-2 p-5 cursor-pointer hover:shadow-md transition-shadow bg-green-50 border-green-500"
           >
             <div className="flex items-center gap-4">
-              {isElectionActive ? (
-                <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 animate-pulse">
-                  <CheckCircle2 className="w-6 h-6 text-white" />
-                </div>
-              ) : isElectionEnded ? (
-                <div className="w-10 h-10 bg-gray-400 rounded-full flex items-center justify-center flex-shrink-0">
-                  <Square className="w-6 h-6 text-white" />
-                </div>
-              ) : (
-                <div className="w-10 h-10 bg-yellow-400 rounded-full flex items-center justify-center flex-shrink-0">
-                  <Clock className="w-6 h-6 text-white" />
-                </div>
-              )}
+              <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 animate-pulse">
+                <CheckCircle2 className="w-6 h-6 text-white" />
+              </div>
               <div className="flex-1">
-                <p className={`font-black text-base ${isElectionActive ? 'text-green-700' : isElectionEnded ? 'text-gray-500' : 'text-yellow-700'}`}>
-                  Election is {isElectionActive ? 'ACTIVE' : isElectionEnded ? 'ENDED' : 'SCHEDULED'}
+                <p className="font-black text-base text-green-700">
+                  Election is ACTIVE
                 </p>
                 <p className="text-sm text-gray-600">
-                  {new Date(electionSchedule.date + 'T00:00:00').toLocaleDateString('en-IN', {
+                  {new Date(schedule.date + 'T00:00:00').toLocaleDateString('en-IN', {
                     weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
                   })}
                   {' '}&nbsp;·&nbsp;{' '}
-                  {formatTime(electionSchedule.fromTime)} – {formatTime(electionSchedule.toTime)}
+                  {formatTime(schedule.fromTime)} – {formatTime(schedule.toTime)}
                   {' '}&nbsp;·&nbsp;{' '}
                   <span className="font-semibold">
-                    {electionSchedule.allConstituencies
+                    {schedule.allConstituencies
                       ? 'All Constituencies'
                       : [
-                          electionSchedule.state,
-                          electionSchedule.district,
-                          electionSchedule.assemblyConstituency && `Assembly: ${electionSchedule.assemblyConstituency}`,
-                          electionSchedule.parliamentConstituency && `Parliament: ${electionSchedule.parliamentConstituency}`,
+                          schedule.state,
+                          schedule.district,
+                          schedule.assemblyConstituency && `Assembly: ${schedule.assemblyConstituency}`,
+                          schedule.parliamentConstituency && `Parliament: ${schedule.parliamentConstituency}`,
                         ].filter(Boolean).join(' → ')}
                   </span>
                 </p>
+                {schedule.resultDate && schedule.resultTime && (
+                  <p className="text-xs text-green-700 font-semibold mt-1 flex items-center gap-1.5">
+                    <span>🇮🇳</span>
+                    <span>Result Release (IST):</span>
+                    <span className="font-bold text-green-800">
+                      {new Date(schedule.resultDate + 'T00:00:00').toLocaleDateString('en-IN', {
+                        day: 'numeric', month: 'short', year: 'numeric',
+                      })} at {formatTime(schedule.resultTime)} (India Time Only)
+                    </span>
+                  </p>
+                )}
               </div>
               <span className="text-xs text-gray-400 flex-shrink-0">Click to manage →</span>
             </div>

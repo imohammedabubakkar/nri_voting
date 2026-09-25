@@ -6,11 +6,15 @@ export interface IElectionSchedule extends Document {
   date: string;
   fromTime: string;
   toTime: string;
+  resultDate?: string;
+  resultTime?: string;
   allConstituencies: boolean;
   state?: string;
   district?: string;
   assemblyConstituency?: string;
   parliamentConstituency?: string;
+  votingCountry?: string;
+  votingCity?: string;
   status: ScheduleStatus;
   startedAt?: Date;
   createdAt: Date;
@@ -34,9 +38,29 @@ const ElectionScheduleSchema = new Schema<IElectionSchedule>(
       required: [true, 'End time is required'],
       trim: true,
     },
+    resultDate: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    resultTime: {
+      type: String,
+      trim: true,
+      default: '',
+    },
     allConstituencies: {
       type: Boolean,
       default: true,
+    },
+    votingCountry: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    votingCity: {
+      type: String,
+      trim: true,
+      default: '',
     },
     state: {
       type: String,

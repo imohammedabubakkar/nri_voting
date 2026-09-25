@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router';
 import { Layout } from '../components/Layout';
 import { Save, ArrowLeft, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { DISTRICTS_BY_STATE } from '../data/indiaData';
+import { resetConstituencyVoting } from '../utils/voteUtils';
 
-const COUNTRIES = [
+export const COUNTRIES = [
   'Afghanistan','Albania','Algeria','Andorra','Angola','Antigua and Barbuda','Argentina','Armenia','Australia',
   'Austria','Azerbaijan','Bahamas','Bahrain','Bangladesh','Barbados','Belarus','Belgium','Belize','Benin',
   'Bhutan','Bolivia','Bosnia and Herzegovina','Botswana','Brazil','Brunei','Bulgaria','Burkina Faso','Burundi',
@@ -29,7 +30,7 @@ const COUNTRIES = [
   'Vatican City','Venezuela','Vietnam','Yemen','Zambia','Zimbabwe',
 ];
 
-const CITIES_BY_COUNTRY: Record<string, string[]> = {
+export const CITIES_BY_COUNTRY: Record<string, string[]> = {
   'Afghanistan': ['Kabul','Kandahar','Herat','Mazar-i-Sharif','Jalalabad','Kunduz'],
   'Albania': ['Tirana','Durrës','Vlorë','Shkodër','Fier','Korçë'],
   'Algeria': ['Algiers','Oran','Constantine','Annaba','Blida','Batna','Sétif'],
@@ -226,7 +227,7 @@ const CITIES_BY_COUNTRY: Record<string, string[]> = {
   'Zimbabwe': ['Harare','Bulawayo','Chitungwiza','Mutare','Gweru','Kwekwe','Kadoma'],
 };
 
-const PINCODE_FORMAT: Record<string, string> = {
+export const PINCODE_FORMAT: Record<string, string> = {
   'United States': '5-digit ZIP (e.g. 10001)',
   'United Kingdom': 'Postcode (e.g. SW1A 1AA)',
   'Canada': 'Postal code (e.g. M5V 3A8)',
@@ -452,10 +453,22 @@ export function CreateUserPage() {
       assemblyConstituency: form.assemblyConstituency,
       parliamentConstituency: form.parliamentConstituency,
       indianPincode: form.indianPincode,
-      constituency: form.parliamentConstituency,
+      hasVotedAssembly: false,
+      hasVotedParliament: false,
     };
     localStorage.setItem('registeredUsers', JSON.stringify([...users, newUser]));
-    alert('User registered successfully!');
+
+    // When a new user registers in a constituency, reset voting so vote starts
+    // from first (0 votes) for all candidates of the same constituency
+    resetConstituencyVoting({
+      assemblyConstituency: form.assemblyConstituency,
+      parliamentConstituency: form.parliamentConstituency,
+      reason: `New user registration: ${form.name}`,
+    });
+
+    alert(
+      `User registered successfully!\n\nVoting has been reset to start from first (0 votes) for all candidates in:\n• Assembly: ${form.assemblyConstituency || 'N/A'}\n• Parliament: ${form.parliamentConstituency || 'N/A'}\n\nAll voters in these constituencies can now vote.`
+    );
     navigate('/admin/registered-users');
   };
 

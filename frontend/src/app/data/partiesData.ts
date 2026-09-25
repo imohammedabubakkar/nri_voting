@@ -93,6 +93,7 @@ export const PARTIES: Party[] = [
   { name: "National People's Party", symbol: '🐓', abbr: 'NPP', symbolImage: img("National People's Party") },
   { name: 'Nationalist Congress Party', symbol: '🕐', abbr: 'NCP', symbolImage: img("Nationalist Congress Party") },
   { name: 'Nationalist Congress Party – Sharadchandra Pawar', symbol: '🎺', abbr: 'NCP-SP', symbolImage: img('Nationalist Congress Party – Sharadchandra Pawar') },
+  { name: 'None of the Above (NOTA)', symbol: '✖️', abbr: 'NOTA', symbolImage: img('None of the Above (NOTA)') },
   { name: "NISHAD Party", symbol: '🐓', abbr: 'NP', symbolImage: img("NISHAD Party") },
   { name: "Odisha Jan Morcha", symbol: '🐓', abbr: 'OJM', symbolImage: img("Odisha Jan Morcha") },
   { name: "Param Digvijay Dal", symbol: '', abbr: 'PDD', symbolImage: img("Param Digvijay Dal") },

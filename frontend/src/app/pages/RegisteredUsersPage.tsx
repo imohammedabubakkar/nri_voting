@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Layout } from '../components/Layout';
 import { Search, ArrowLeft, Pencil, Trash2, X, Save, UserCheck } from 'lucide-react';
+import { COUNTRIES, CITIES_BY_COUNTRY, PINCODE_FORMAT } from './CreateUserPage';
+import { DISTRICTS_BY_STATE } from '../data/indiaData';
 
 interface User {
   id: number;
@@ -182,7 +184,7 @@ export function RegisteredUsersPage() {
     setEditForm(null);
   };
 
-  const setField = (field: keyof User) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const setField = (field: keyof User) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     let value = e.target.value;
     if (field === 'voterId') {
       value = value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10);
@@ -199,8 +201,37 @@ export function RegisteredUsersPage() {
     ) {
       value = value.toUpperCase();
     }
-    setEditForm(prev => prev ? { ...prev, [field]: value } : prev);
+    setEditForm(prev => {
+      if (!prev) return prev;
+      const updated = { ...prev, [field]: value };
+      if (field === 'country') {
+        updated.currentPlace = '';
+        updated.currentPincode = '';
+      }
+      if (field === 'indianState') {
+        updated.indianDistrict = '';
+      }
+      return updated;
+    });
   };
+
+  const countryOptions = editForm?.country && !COUNTRIES.includes(editForm.country)
+    ? [editForm.country, ...COUNTRIES]
+    : COUNTRIES;
+  const baseCities = editForm?.country ? (CITIES_BY_COUNTRY[editForm.country] || []) : [];
+  const citiesForCountry = editForm?.currentPlace && !baseCities.includes(editForm.currentPlace)
+    ? [editForm.currentPlace, ...baseCities]
+    : baseCities;
+  const editPincodePlaceholder = editForm?.country ? (PINCODE_FORMAT[editForm.country] || 'Postal / ZIP code') : 'Postal / ZIP code';
+
+  const INDIAN_STATES = Object.keys(DISTRICTS_BY_STATE);
+  const stateOptions = editForm?.indianState && !INDIAN_STATES.includes(editForm.indianState)
+    ? [editForm.indianState, ...INDIAN_STATES]
+    : INDIAN_STATES;
+  const baseDistricts = editForm?.indianState ? (DISTRICTS_BY_STATE[editForm.indianState] || []) : [];
+  const districtsForState = editForm?.indianDistrict && !baseDistricts.includes(editForm.indianDistrict)
+    ? [editForm.indianDistrict, ...baseDistricts]
+    : baseDistricts;
 
   const deleteUser = (id: number) => {
     const updated = users.filter(u => u.id !== id);
@@ -489,13 +520,27 @@ export function RegisteredUsersPage() {
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">Country</label>
-                  <input value={editForm.country} onChange={setField('country')}
-                    className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none" />
+                  <select
+                    value={editForm.country}
+                    onChange={setField('country')}
+                    className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none bg-white"
+                    required
+                  >
+                    <option value="">-- Select Country --</option>
+                    {countryOptions.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Current Place</label>
-                  <input value={editForm.currentPlace || ''} onChange={setField('currentPlace')}
-                    className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none" />
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Current Place / City</label>
+                  <select
+                    value={editForm.currentPlace || ''}
+                    onChange={setField('currentPlace')}
+                    className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    disabled={!editForm.country}
+                  >
+                    <option value="">{editForm.country ? '-- Select City --' : 'Select a country first'}</option>
+                    {citiesForCountry.map(city => <option key={city} value={city}>{city}</option>)}
+                  </select>
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-sm font-semibold text-gray-700 mb-1">Current Address</label>
@@ -503,9 +548,13 @@ export function RegisteredUsersPage() {
                     className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none uppercase" />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Current Pincode</label>
-                  <input value={editForm.currentPincode || ''} onChange={setField('currentPincode')}
-                    className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none" />
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Current Pincode / ZIP</label>
+                  <input
+                    value={editForm.currentPincode || ''}
+                    onChange={setField('currentPincode')}
+                    placeholder={editPincodePlaceholder}
+                    className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none"
+                  />
                 </div>
               </div>
 
@@ -518,13 +567,26 @@ export function RegisteredUsersPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">State</label>
-                  <input value={editForm.indianState || ''} onChange={setField('indianState')}
-                    className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none" />
+                  <select
+                    value={editForm.indianState || ''}
+                    onChange={setField('indianState')}
+                    className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none bg-white"
+                  >
+                    <option value="">-- Select State / UT --</option>
+                    {stateOptions.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">District</label>
-                  <input value={editForm.indianDistrict || ''} onChange={setField('indianDistrict')}
-                    className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none" />
+                  <select
+                    value={editForm.indianDistrict || ''}
+                    onChange={setField('indianDistrict')}
+                    className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    disabled={!editForm.indianState}
+                  >
+                    <option value="">{editForm.indianState ? '-- Select District --' : 'Select a state first'}</option>
+                    {districtsForState.map(d => <option key={d} value={d}>{d}</option>)}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">Place / City / Town</label>

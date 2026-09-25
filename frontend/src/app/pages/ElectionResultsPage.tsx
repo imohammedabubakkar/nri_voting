@@ -1,9 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { Layout } from '../components/Layout';
-import { ArrowLeft, TrendingUp, MapPin, Trophy, UserX, Building2, Landmark, Filter } from 'lucide-react';
+import {
+  ArrowLeft, TrendingUp, MapPin, UserX, Building2, Landmark, Filter,
+  Lock, Clock, CalendarDays, CheckCircle2, Eye, EyeOff, AlertTriangle, ShieldCheck,
+} from 'lucide-react';
 import { DISTRICTS_BY_STATE } from '../data/indiaData';
 import { PARTY_SYMBOL_IMAGES } from '../data/partySymbolImages';
+import { ensureNotaCandidates, isNotaCandidate } from '../utils/candidateUtils';
+import { getResultReleaseStatus } from '../utils/timezoneUtils';
 
 interface RegisteredUser {
   id: number;
@@ -29,6 +34,7 @@ interface Candidate {
   electionType: string;
   state?: string;
   district?: string;
+  isDefault?: boolean;
 }
 
 const ALL_STATES = Object.keys(DISTRICTS_BY_STATE).sort();
@@ -67,12 +73,14 @@ function ResultPanel({
   const constitVotes: Record<string, number> = votesData[electionType]?.[constituencyName] || {};
   const totalVotesRecorded = Object.values(constitVotes).reduce((s, v) => s + v, 0);
 
+  // Only display candidates and NOTA if at least one real candidate is assigned
+  const hasRealCandidate = candidates.some(c => !isNotaCandidate(c));
+  const effectiveCandidates = hasRealCandidate ? candidates : [];
+
   // Sort candidates by vote count descending
-  const sorted = [...candidates].sort(
+  const sorted = [...effectiveCandidates].sort(
     (a, b) => (constitVotes[String(b.id)] || 0) - (constitVotes[String(a.id)] || 0)
   );
-  const winner = sorted[0];
-  const winnerVotes = winner ? (constitVotes[String(winner.id)] || 0) : 0;
   const hasVotes = totalVotesRecorded > 0;
 
   // Base for percentage = registered voters (the true electorate size)
@@ -105,7 +113,7 @@ function ResultPanel({
           <StatCard label="Voter Turnout" value={`${turnout}%`} color="bg-gradient-to-br from-orange-500 to-orange-600" />
         </div>
 
-        {candidates.length === 0 ? (
+        {effectiveCandidates.length === 0 ? (
           <div className="text-center py-10 text-gray-400">
             <p className="text-base font-semibold">No candidates registered for this constituency.</p>
           </div>
@@ -117,7 +125,7 @@ function ResultPanel({
                 <h4 className="font-bold text-gray-700 text-sm uppercase tracking-wide">
                   All Parties — Vote Count &amp; Percentage
                 </h4>
-                <span className="text-xs text-gray-400">{candidates.length} candidate{candidates.length !== 1 ? 's' : ''}</span>
+                <span className="text-xs text-gray-400">{effectiveCandidates.length} candidate{effectiveCandidates.length !== 1 ? 's' : ''}</span>
               </div>
 
               <div className="divide-y divide-gray-100">
@@ -198,83 +206,6 @@ function ResultPanel({
               </div>
             </div>
 
-            {/* ── WINNING PARTY BANNER ── shown at bottom when votes exist */}
-            {hasVotes && winnerVotes > 0 ? (
-              <div className="rounded-2xl p-[3px] bg-gradient-to-br from-yellow-400 via-amber-400 to-orange-400 shadow-xl">
-                <div className="bg-gradient-to-br from-yellow-50 to-amber-50 rounded-xl p-7">
-                  {/* Title */}
-                  <div className="flex items-center justify-center gap-2 mb-6">
-                    <Trophy className="w-7 h-7 text-yellow-600" />
-                    <h4 className="text-xl font-black text-yellow-800 uppercase tracking-widest">
-                      Winner — Majority Party
-                    </h4>
-                    <Trophy className="w-7 h-7 text-yellow-600" />
-                  </div>
-
-                  <div className="flex flex-col sm:flex-row items-center gap-6">
-                    {/* Large party symbol */}
-                    <div className="w-32 h-32 flex-shrink-0 bg-white border-4 border-yellow-400 rounded-2xl flex items-center justify-center overflow-hidden shadow-lg">
-                      {PARTY_SYMBOL_IMAGES[winner.partyName] || winner.partySymbolImage ? (
-                        <img
-                          src={PARTY_SYMBOL_IMAGES[winner.partyName] || winner.partySymbolImage}
-                          alt={winner.partyName}
-                          className="w-28 h-28 object-contain"
-                        />
-                      ) : (
-                        <span className="text-7xl">{winner.partySymbol}</span>
-                      )}
-                    </div>
-
-                    {/* Party details */}
-                    <div className="flex-1 text-center sm:text-left">
-                      <p className="text-3xl font-black text-yellow-900 mb-1">
-                        {winner.partyAbbr || winner.partyName}
-                      </p>
-                      <p className="text-base text-yellow-800 font-semibold mb-1">{winner.partyName}</p>
-                      <p className="text-sm text-gray-600 mb-4">
-                        Candidate:{' '}
-                        <span className="font-bold text-blue-900">{winner.name}</span>
-                      </p>
-
-                      {/* Vote numbers */}
-                      <div className="flex items-center justify-center sm:justify-start gap-6">
-                        <div className="text-center">
-                          <p className="text-4xl font-black text-yellow-600">{winnerVotes}</p>
-                          <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide">Votes Won</p>
-                        </div>
-                        <div className="w-px h-12 bg-yellow-300" />
-                        <div className="text-center">
-                          <p className="text-4xl font-black text-orange-500">
-                            {((winnerVotes / pctBase) * 100).toFixed(1)}%
-                          </p>
-                          <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide">of Registered</p>
-                        </div>
-                        <div className="w-px h-12 bg-yellow-300" />
-                        <div className="text-center">
-                          <p className="text-4xl font-black text-green-600">{registered}</p>
-                          <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide">Registered</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Badge */}
-                    <div className="flex-shrink-0">
-                      <div className="bg-yellow-500 text-white font-black px-5 py-3 rounded-2xl text-sm uppercase tracking-widest shadow-lg text-center">
-                        <Trophy className="w-8 h-8 mx-auto mb-1" />
-                        Elected
-                        <br />
-                        Winner
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="border-2 border-dashed border-yellow-300 rounded-xl py-8 text-center text-yellow-600 bg-yellow-50">
-                <Trophy className="w-10 h-10 mx-auto mb-2 opacity-40" />
-                <p className="font-semibold text-sm">Winning party will appear here once votes are cast</p>
-              </div>
-            )}
           </>
         )}
       </div>
@@ -289,9 +220,31 @@ export function ElectionResultsPage() {
   const [filterDistrict, setFilterDistrict] = useState('');
   const [filterAssembly, setFilterAssembly] = useState('');
   const [filterParliament, setFilterParliament] = useState('');
+  const [, setRefresh] = useState(0);
+  const [now, setNow] = useState<Date>(new Date());
+  const [adminPreviewUnlocked, setAdminPreviewUnlocked] = useState(false);
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const handleUpdate = () => setRefresh(r => r + 1);
+    window.addEventListener('storage', handleUpdate);
+    window.addEventListener('constituency_vote_reset', handleUpdate);
+    return () => {
+      window.removeEventListener('storage', handleUpdate);
+      window.removeEventListener('constituency_vote_reset', handleUpdate);
+    };
+  }, []);
+
+  const schedule = JSON.parse(localStorage.getItem('electionSchedule') || 'null');
+  const releaseStatus = getResultReleaseStatus(schedule, now);
 
   const allUsers: RegisteredUser[] = JSON.parse(localStorage.getItem('registeredUsers') || '[]');
-  const allCandidates: Candidate[] = JSON.parse(localStorage.getItem('registeredCandidates') || '[]');
+  const rawCandidates: Candidate[] = JSON.parse(localStorage.getItem('registeredCandidates') || '[]');
+  const allCandidates: Candidate[] = ensureNotaCandidates(rawCandidates as any) as Candidate[];
   const votesData: Record<string, Record<string, Record<string, number>>> = JSON.parse(
     localStorage.getItem('votesData') || '{}'
   );
@@ -393,136 +346,310 @@ export function ElectionResultsPage() {
             <TrendingUp className="w-12 h-12 text-green-600" />
           </div>
 
-          {/* Filter Panel */}
-          <div className="bg-gray-50 border-2 border-gray-200 rounded-xl p-6 mb-8">
-            <h3 className="text-sm font-black text-blue-900 mb-4 flex items-center gap-2 uppercase tracking-widest">
-              <Filter className="w-4 h-4 text-orange-500" />
-              Select Location &amp; Constituency
-            </h3>
-
-            <div className="grid sm:grid-cols-2 gap-4">
-              {/* State */}
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">
-                  State / UT
-                </label>
-                <select
-                  value={filterState}
-                  onChange={e => handleStateChange(e.target.value)}
-                  className={selectCls}
-                >
-                  <option value="">-- Select State --</option>
-                  {ALL_STATES.map(s => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
+          {/* ── RESULT RELEASE GATE (INDIA TIME ONLY) ── */}
+          {releaseStatus.isConfigured && !releaseStatus.isReleased && !adminPreviewUnlocked ? (
+            <div className="bg-gradient-to-br from-slate-900 via-blue-950 to-indigo-950 text-white rounded-2xl p-6 sm:p-10 shadow-2xl border-4 border-orange-500 overflow-hidden relative">
+              {/* Background watermark */}
+              <div className="absolute right-4 top-1/2 -translate-y-1/2 opacity-5 pointer-events-none select-none text-9xl">
+                🇮🇳
               </div>
 
-              {/* District */}
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">
-                  District
-                </label>
-                <select
-                  value={filterDistrict}
-                  onChange={e => handleDistrictChange(e.target.value)}
-                  className={selectCls}
-                  disabled={!filterState}
-                >
-                  <option value="">{filterState ? '-- Select District --' : 'Select state first'}</option>
-                  {districtOptions.map(d => (
-                    <option key={d} value={d}>{d}</option>
-                  ))}
-                </select>
+              <div className="relative z-10 space-y-6">
+                {/* Header Tag */}
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-orange-500/20 border border-orange-400 text-orange-300 text-xs font-bold uppercase tracking-wider">
+                    <span>🇮🇳</span>
+                    <span>India Standard Time (IST / GMT+5:30) Controlled Release</span>
+                  </div>
+                  <span className="text-xs text-gray-400 font-mono">
+                    Timezone: Asia/Kolkata (UTC+05:30)
+                  </span>
+                </div>
+
+                {/* Title and Lock */}
+                <div className="flex flex-col sm:flex-row sm:items-center gap-5">
+                  <div className="w-16 h-16 rounded-2xl bg-orange-500/20 border-2 border-orange-500 flex items-center justify-center shrink-0 shadow-lg shadow-orange-500/10">
+                    <Lock className="w-8 h-8 text-orange-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-2xl sm:text-3xl font-black text-white">
+                      Election Results Awaited
+                    </h3>
+                    <p className="text-blue-200 text-sm mt-1 max-w-xl">
+                      Official election results are confidential and locked. They will only be published when the official clock in India reaches the scheduled release date and time.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Live Countdown Display */}
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-6 backdrop-blur-sm">
+                  <p className="text-xs font-bold text-orange-400 uppercase tracking-widest text-center mb-4">
+                    ⏳ Time Remaining Until Official India Time Release
+                  </p>
+                  <div className="grid grid-cols-4 gap-2 sm:gap-4 max-w-lg mx-auto text-center">
+                    <div className="bg-white/10 rounded-xl p-3 border border-white/10">
+                      <span className="block text-2xl sm:text-4xl font-black text-white">
+                        {String(releaseStatus.days).padStart(2, '0')}
+                      </span>
+                      <span className="text-[10px] sm:text-xs text-gray-400 uppercase font-semibold">Days</span>
+                    </div>
+                    <div className="bg-white/10 rounded-xl p-3 border border-white/10">
+                      <span className="block text-2xl sm:text-4xl font-black text-white">
+                        {String(releaseStatus.hours).padStart(2, '0')}
+                      </span>
+                      <span className="text-[10px] sm:text-xs text-gray-400 uppercase font-semibold">Hours</span>
+                    </div>
+                    <div className="bg-white/10 rounded-xl p-3 border border-white/10">
+                      <span className="block text-2xl sm:text-4xl font-black text-white">
+                        {String(releaseStatus.minutes).padStart(2, '0')}
+                      </span>
+                      <span className="text-[10px] sm:text-xs text-gray-400 uppercase font-semibold">Minutes</span>
+                    </div>
+                    <div className="bg-white/10 rounded-xl p-3 border border-white/10">
+                      <span className="block text-2xl sm:text-4xl font-black text-orange-400">
+                        {String(releaseStatus.seconds).padStart(2, '0')}
+                      </span>
+                      <span className="text-[10px] sm:text-xs text-gray-400 uppercase font-semibold">Seconds</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Two Details Cards: Scheduled IST vs Current IST */}
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
+                      <CalendarDays className="w-4 h-4 text-green-400" />
+                      Scheduled Release (India Time)
+                    </p>
+                    <p className="text-base font-bold text-white">
+                      {releaseStatus.resultFormattedDate}
+                    </p>
+                    <p className="text-sm font-black text-green-400 mt-0.5">
+                      {releaseStatus.resultFormattedTime12} IST (GMT+5:30)
+                    </p>
+                  </div>
+
+                  <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
+                      <Clock className="w-4 h-4 text-blue-400" />
+                      Current Official India Clock
+                    </p>
+                    <p className="text-base font-bold text-white">
+                      {releaseStatus.indiaCurrentDate}
+                    </p>
+                    <p className="text-sm font-black text-blue-300 mt-0.5 font-mono">
+                      {releaseStatus.indiaCurrentTime12} IST
+                    </p>
+                  </div>
+                </div>
+
+                {/* Policy Notice */}
+                <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 text-xs text-amber-200">
+                  <p className="font-bold text-amber-300 mb-1 flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-amber-400" />
+                    Strict India Time Policy
+                  </p>
+                  Election results will only be unlocked based on India time only. NRI voters and portal visitors in any other country timezone (e.g., USA, UK, UAE, Australia, Canada, Singapore) cannot view results until India reaches the release schedule.
+                </div>
+
+                {/* Admin Confidential Preview Option */}
+                <div className="pt-4 border-t border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <p className="text-xs text-gray-400">
+                    Administrator verification needed? You can preview confidential draft counts before official public release.
+                  </p>
+                  <button
+                    onClick={() => setAdminPreviewUnlocked(true)}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer shadow-md"
+                  >
+                    <Eye className="w-4 h-4" />
+                    Inspect Confidential Results (Admin Preview)
+                  </button>
+                </div>
               </div>
-
-              {/* Assembly */}
-              <div>
-                <label className="block text-xs font-bold text-blue-600 uppercase tracking-wide mb-1.5 flex items-center gap-1">
-                  <Building2 className="w-3.5 h-3.5" /> Assembly Constituency
-                </label>
-                <select
-                  value={filterAssembly}
-                  onChange={e => setFilterAssembly(e.target.value)}
-                  className={`${selectCls} ${filterAssembly ? 'border-blue-500 bg-blue-50' : ''}`}
-                  disabled={!filterDistrict}
-                >
-                  <option value="">
-                    {filterDistrict
-                      ? assemblyOptions.length
-                        ? '-- Select Assembly Constituency --'
-                        : 'No assembly data for this district'
-                      : 'Select district first'}
-                  </option>
-                  {assemblyOptions.map(a => (
-                    <option key={a} value={a}>{a}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Parliament */}
-              <div>
-                <label className="block text-xs font-bold text-green-700 uppercase tracking-wide mb-1.5 flex items-center gap-1">
-                  <Landmark className="w-3.5 h-3.5" /> Parliament Constituency
-                </label>
-                <select
-                  value={filterParliament}
-                  onChange={e => setFilterParliament(e.target.value)}
-                  className={`${selectCls} ${filterParliament ? 'border-green-500 bg-green-50' : ''}`}
-                  disabled={!filterDistrict}
-                >
-                  <option value="">
-                    {filterDistrict
-                      ? parliamentOptions.length
-                        ? '-- Select Parliament Constituency --'
-                        : 'No parliament data for this district'
-                      : 'Select district first'}
-                  </option>
-                  {parliamentOptions.map(p => (
-                    <option key={p} value={p}>{p}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {showResults && (
-              <button
-                onClick={() => { setFilterAssembly(''); setFilterParliament(''); }}
-                className="mt-4 text-xs text-red-500 hover:text-red-700 underline"
-              >
-                Clear constituency selection
-              </button>
-            )}
-          </div>
-
-          {/* Results */}
-          {!showResults ? (
-            <div className="text-center py-20 text-gray-400">
-              <MapPin className="w-14 h-14 mx-auto mb-4 opacity-25" />
-              <p className="text-lg font-semibold text-gray-500">Select a constituency above to view results</p>
-              <p className="text-sm mt-1">Choose Assembly, Parliament, or both</p>
             </div>
           ) : (
-            <div className="space-y-8">
-              {filterAssembly && (
-                <ResultPanel
-                  electionType="assembly"
-                  constituencyName={filterAssembly}
-                  candidates={assemblyCandidates}
-                  voters={assemblyVoters}
-                  votesData={votesData}
-                />
+            <>
+              {/* If Admin Preview Override is active */}
+              {releaseStatus.isConfigured && !releaseStatus.isReleased && adminPreviewUnlocked && (
+                <div className="bg-amber-50 border-2 border-amber-500 rounded-xl p-4 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <AlertTriangle className="w-6 h-6 text-amber-600 flex-shrink-0" />
+                    <div>
+                      <p className="font-black text-amber-900 text-sm">
+                        CONFIDENTIAL ADMIN PREVIEW — NOT YET RELEASED IN INDIA TIME (IST)
+                      </p>
+                      <p className="text-xs text-amber-800 mt-0.5">
+                        Official public release in {releaseStatus.countdownFormatted} on {releaseStatus.resultFormattedDate} at {releaseStatus.resultFormattedTime12} IST. Voters currently cannot access these results.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setAdminPreviewUnlocked(false)}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-colors shrink-0"
+                  >
+                    <EyeOff className="w-3.5 h-3.5" />
+                    Re-lock View
+                  </button>
+                </div>
               )}
-              {filterParliament && (
-                <ResultPanel
-                  electionType="parliament"
-                  constituencyName={filterParliament}
-                  candidates={parliamentCandidates}
-                  voters={parliamentVoters}
-                  votesData={votesData}
-                />
+
+              {/* If Officially Released */}
+              {releaseStatus.isConfigured && releaseStatus.isReleased && (
+                <div className="bg-green-50 border-2 border-green-500 rounded-xl p-4 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <CheckCircle2 className="w-7 h-7 text-green-600 flex-shrink-0" />
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-black text-green-800 text-base">
+                          ✓ Official Election Results Declared
+                        </span>
+                        <span className="px-2 py-0.5 bg-green-600 text-white text-[11px] font-black rounded uppercase">
+                          Published
+                        </span>
+                      </div>
+                      <p className="text-xs text-green-700 mt-0.5">
+                        Declared on {releaseStatus.resultFormattedDate} at {releaseStatus.resultFormattedTime12} (India Standard Time - IST). Results are now public across all countries.
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-xs font-bold px-3 py-1.5 bg-green-200 text-green-900 rounded-lg shrink-0">
+                    🇮🇳 India Time (IST)
+                  </span>
+                </div>
               )}
-            </div>
+
+              {/* Filter Panel */}
+              <div className="bg-gray-50 border-2 border-gray-200 rounded-xl p-6 mb-8">
+                <h3 className="text-sm font-black text-blue-900 mb-4 flex items-center gap-2 uppercase tracking-widest">
+                  <Filter className="w-4 h-4 text-orange-500" />
+                  Select Location &amp; Constituency
+                </h3>
+
+                <div className="grid sm:grid-cols-2 gap-4">
+                  {/* State */}
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">
+                      State / UT
+                    </label>
+                    <select
+                      value={filterState}
+                      onChange={e => handleStateChange(e.target.value)}
+                      className={selectCls}
+                    >
+                      <option value="">-- Select State --</option>
+                      {ALL_STATES.map(s => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* District */}
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">
+                      District
+                    </label>
+                    <select
+                      value={filterDistrict}
+                      onChange={e => handleDistrictChange(e.target.value)}
+                      className={selectCls}
+                      disabled={!filterState}
+                    >
+                      <option value="">{filterState ? '-- Select District --' : 'Select state first'}</option>
+                      {districtOptions.map(d => (
+                        <option key={d} value={d}>{d}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Assembly */}
+                  <div>
+                    <label className="block text-xs font-bold text-blue-600 uppercase tracking-wide mb-1.5 flex items-center gap-1">
+                      <Building2 className="w-3.5 h-3.5" /> Assembly Constituency
+                    </label>
+                    <select
+                      value={filterAssembly}
+                      onChange={e => setFilterAssembly(e.target.value)}
+                      className={`${selectCls} ${filterAssembly ? 'border-blue-500 bg-blue-50' : ''}`}
+                      disabled={!filterDistrict}
+                    >
+                      <option value="">
+                        {filterDistrict
+                          ? assemblyOptions.length
+                            ? '-- Select Assembly Constituency --'
+                            : 'No assembly data for this district'
+                          : 'Select district first'}
+                      </option>
+                      {assemblyOptions.map(a => (
+                        <option key={a} value={a}>{a}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Parliament */}
+                  <div>
+                    <label className="block text-xs font-bold text-green-700 uppercase tracking-wide mb-1.5 flex items-center gap-1">
+                      <Landmark className="w-3.5 h-3.5" /> Parliament Constituency
+                    </label>
+                    <select
+                      value={filterParliament}
+                      onChange={e => setFilterParliament(e.target.value)}
+                      className={`${selectCls} ${filterParliament ? 'border-green-500 bg-green-50' : ''}`}
+                      disabled={!filterDistrict}
+                    >
+                      <option value="">
+                        {filterDistrict
+                          ? parliamentOptions.length
+                            ? '-- Select Parliament Constituency --'
+                            : 'No parliament data for this district'
+                          : 'Select district first'}
+                      </option>
+                      {parliamentOptions.map(p => (
+                        <option key={p} value={p}>{p}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {showResults && (
+                  <button
+                    onClick={() => { setFilterAssembly(''); setFilterParliament(''); }}
+                    className="mt-4 text-xs text-red-500 hover:text-red-700 underline"
+                  >
+                    Clear constituency selection
+                  </button>
+                )}
+              </div>
+
+              {/* Results */}
+              {!showResults ? (
+                <div className="text-center py-20 text-gray-400">
+                  <MapPin className="w-14 h-14 mx-auto mb-4 opacity-25" />
+                  <p className="text-lg font-semibold text-gray-500">Select a constituency above to view results</p>
+                  <p className="text-sm mt-1">Choose Assembly, Parliament, or both</p>
+                </div>
+              ) : (
+                <div className="space-y-8">
+                  {filterAssembly && (
+                    <ResultPanel
+                      electionType="assembly"
+                      constituencyName={filterAssembly}
+                      candidates={assemblyCandidates}
+                      voters={assemblyVoters}
+                      votesData={votesData}
+                    />
+                  )}
+                  {filterParliament && (
+                    <ResultPanel
+                      electionType="parliament"
+                      constituencyName={filterParliament}
+                      candidates={parliamentCandidates}
+                      voters={parliamentVoters}
+                      votesData={votesData}
+                    />
+                  )}
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

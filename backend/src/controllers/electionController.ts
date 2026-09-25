@@ -37,6 +37,10 @@ export async function getSchedule(req: Request, res: Response, next: NextFunctio
     }
 
     const liveStatus = computeLiveStatus(schedule);
+    if (liveStatus === 'ended' && schedule.status !== 'ended') {
+      schedule.status = 'ended';
+      await schedule.save();
+    }
 
     res.json({
       success: true,
@@ -52,7 +56,8 @@ export async function getSchedule(req: Request, res: Response, next: NextFunctio
 export async function setSchedule(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const {
-      date, fromTime, toTime, allConstituencies,
+      date, fromTime, toTime, resultDate, resultTime,
+      votingCountry, votingCity, allConstituencies,
       state, district, assemblyConstituency, parliamentConstituency, status
     } = req.body;
 
@@ -79,6 +84,10 @@ export async function setSchedule(req: Request, res: Response, next: NextFunctio
       date,
       fromTime,
       toTime,
+      resultDate: resultDate || '',
+      resultTime: resultTime || '',
+      votingCountry: votingCountry || '',
+      votingCity: votingCity || '',
       allConstituencies: allConstituencies ?? true,
       state: state || '',
       district: district || '',

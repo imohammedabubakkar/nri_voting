@@ -6,6 +6,7 @@ import { Candidate } from '../models/Candidate.js';
 import { ElectionSchedule } from '../models/ElectionSchedule.js';
 import { AuthenticatedRequest } from '../middlewares/authMiddleware.js';
 import { config } from '../config/index.js';
+import { isElectionActiveInCountry } from '../utils/timezone.js';
 
 // Anonymize voter identifier for secret ballot
 function hashVoter(aadhaar: string, electionType: string): string {
@@ -32,41 +33,7 @@ export async function castVote(
       return;
     }
 
-    // 1. Verify active election schedule & time window
-    const schedule = await ElectionSchedule.findOne().sort({ createdAt: -1 });
-    if (!schedule || schedule.status !== 'active') {
-      res.status(403).json({
-        success: false,
-        message: 'No active election currently in progress. Your vote cannot be accepted.',
-      });
-      return;
-    }
-
-    const [year, month, day] = schedule.date.split('-').map(Number);
-    const [toH, toM] = schedule.toTime.split(':').map(Number);
-    const [fromH, fromM] = schedule.fromTime.split(':').map(Number);
-
-    const now = new Date();
-    const electionStart = new Date(year, month - 1, day, fromH, fromM, 0);
-    const electionEnd = new Date(year, month - 1, day, toH, toM, 0);
-
-    if (now < electionStart) {
-      res.status(403).json({
-        success: false,
-        message: 'Election voting window has not started yet.',
-      });
-      return;
-    }
-
-    if (now > electionEnd) {
-      res.status(403).json({
-        success: false,
-        message: 'Election voting window has ended. Votes can no longer be submitted.',
-      });
-      return;
-    }
-
-    // 2. Identify voter (from token or fallback to voterId in body if allowed)
+    // 1. Identify voter (from token or fallback to voterId in body if allowed)
     const voterUserId = req.user?.id || req.body.userId;
     if (!voterUserId) {
       res.status(401).json({ success: false, message: 'Voter authentication required.' });
@@ -76,6 +43,20 @@ export async function castVote(
     const voter = await User.findById(voterUserId);
     if (!voter) {
       res.status(404).json({ success: false, message: 'Voter profile not found.' });
+      return;
+    }
+
+    // 2. Verify active election schedule & country-specific time window
+    const schedule = await ElectionSchedule.findOne().sort({ createdAt: -1 });
+    const votingCountry = req.body.country || voter.country || 'India';
+    const votingCity = req.body.city || voter.currentPlace || '';
+
+    const countryCheck = isElectionActiveInCountry(schedule, votingCountry, votingCity, new Date());
+    if (!countryCheck.isActive) {
+      res.status(403).json({
+        success: false,
+        message: countryCheck.message,
+      });
       return;
     }
 

@@ -75,6 +75,12 @@ import cut from '../../imports/cut.png';
 import kadi from '../../imports/kadi.png';
 import footy from '../../imports/footy.png';
 import biru from '../../imports/biru.png';
+import sitzer from '../../imports/sitzer.png';
+import lige from '../../imports/lige.png';
+import tree from '../../imports/tree.png';
+import tor from '../../imports/tor.png';
+import messi from '../../imports/messi.png';
+import cy from '../../imports/cy.png';
 
 
 
@@ -161,5 +167,11 @@ export const PARTY_SYMBOL_IMAGES: Record<string, string> = {
   "Hindustani Awam Morcha (Secular)": kadi,
   "Indian Gandhiyan Party": footy,
   "Indian Secular Front": biru,
+  "Jharkhand Loktantrik Krantikari Morcha": sitzer,
+  "Karnataka Rashtra Samithi": lige,
+  "Kerala Congress (Jacob)": tree,
+  "Makkal Needhi Maiam": tor,
+  "Mamata All India Trinamool Congress": messi,
+  "Manipur People's Party": cy,
 };
 

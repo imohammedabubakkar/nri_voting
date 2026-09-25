@@ -21,6 +21,39 @@ interface RegisteredUser {
   constituency?: string;
 }
 
+function formatDobToDDMMYYYY(dob?: string): string {
+  if (!dob || !dob.trim()) return '—';
+  const clean = dob.trim();
+
+  // If already in DD/MM/YYYY format
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(clean)) {
+    return clean;
+  }
+
+  // If in YYYY-MM-DD format (standard HTML date input format)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) {
+    const [year, month, day] = clean.split('-');
+    return `${day}/${month}/${year}`;
+  }
+
+  // If in DD-MM-YYYY format
+  if (/^\d{2}-\d{2}-\d{4}$/.test(clean)) {
+    const [day, month, year] = clean.split('-');
+    return `${day}/${month}/${year}`;
+  }
+
+  // Fallback for valid date representations
+  const parsed = new Date(clean);
+  if (!isNaN(parsed.getTime())) {
+    const day = String(parsed.getDate()).padStart(2, '0');
+    const month = String(parsed.getMonth() + 1).padStart(2, '0');
+    const year = parsed.getFullYear();
+    return `${day}/${month}/${year}`;
+  }
+
+  return clean;
+}
+
 export function DownloadVotersPage() {
   const navigate = useNavigate();
   const [filterCountry, setFilterCountry] = useState('');
@@ -54,7 +87,7 @@ export function DownloadVotersPage() {
       <tr style="background:${i % 2 === 0 ? '#fff' : '#f8fafc'}">
         <td>${i + 1}</td>
         <td>${u.name || '—'}</td>
-        <td>${u.dob || '—'}</td>
+        <td>${formatDobToDDMMYYYY(u.dob)}</td>
         <td>${u.country || '—'}</td>
         <td>${u.currentPlace || '—'}</td>
         <td>${u.currentAddress || '—'}</td>
@@ -236,7 +269,7 @@ export function DownloadVotersPage() {
                         <tr key={u.id} className={`border-b hover:bg-yellow-50 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
                           <td className="px-4 py-3 text-gray-500">{i + 1}</td>
                           <td className="px-4 py-3 font-semibold text-blue-900 whitespace-nowrap">{u.name || '—'}</td>
-                          <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{u.dob || '—'}</td>
+                          <td className="px-4 py-3 text-gray-700 whitespace-nowrap font-mono">{formatDobToDDMMYYYY(u.dob)}</td>
                           <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{u.country || '—'}</td>
                           <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{u.currentPlace || '—'}</td>
                           <td className="px-4 py-3 text-gray-700 max-w-xs truncate">{u.currentAddress || '—'}</td>

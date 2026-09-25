@@ -123,6 +123,17 @@ export async function createUser(req: Request, res: Response, next: NextFunction
       return;
     }
 
+    // Voter ID format validation (3 capital letters followed by 7 numbers)
+    const VOTER_ID_REGEX = /^[A-Z]{3}[0-9]{7}$/;
+    const cleanVoterId = voterId.trim().toUpperCase();
+    if (!VOTER_ID_REGEX.test(cleanVoterId)) {
+      res.status(400).json({
+        success: false,
+        message: 'Invalid Voter ID format. Must be 3 capital letters followed by 7 numbers (e.g., ABC1234567).',
+      });
+      return;
+    }
+
     // Check duplicates
     const duplicateAadhaar = await User.findOne({ aadhaar: aadhaar.trim() });
     if (duplicateAadhaar) {
@@ -137,7 +148,16 @@ export async function createUser(req: Request, res: Response, next: NextFunction
     }
 
     if (passport && passport.trim()) {
-      const duplicatePassport = await User.findOne({ passport: passport.trim() });
+      const PASSPORT_REGEX = /^([A-Z]{2}[0-9]{6}|[A-Z][0-9]{7})$/;
+      const cleanPassport = passport.trim().toUpperCase();
+      if (!PASSPORT_REGEX.test(cleanPassport)) {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid Passport format. Must be 2 capital letters followed by 6 numbers (e.g., AB123456) or 1 capital letter followed by 7 numbers (e.g., A1234567).',
+        });
+        return;
+      }
+      const duplicatePassport = await User.findOne({ passport: cleanPassport });
       if (duplicatePassport) {
         res.status(409).json({ success: false, message: 'A voter with this Passport number already exists.' });
         return;
@@ -150,7 +170,7 @@ export async function createUser(req: Request, res: Response, next: NextFunction
       age,
       aadhaar: aadhaar.trim(),
       voterId: voterId.trim(),
-      passport: passport ? passport.trim() : '',
+      passport: passport ? passport.trim().toUpperCase() : '',
       country: country.trim(),
       currentPlace: currentPlace ? currentPlace.trim() : '',
       currentAddress: currentAddress ? currentAddress.trim() : '',

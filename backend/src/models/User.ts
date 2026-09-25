@@ -53,11 +53,21 @@ const UserSchema = new Schema<IUser>(
       required: [true, 'Voter ID is required'],
       unique: true,
       trim: true,
+      uppercase: true,
+      match: [/^[A-Z]{3}[0-9]{7}$/, 'Voter ID must be 3 capital letters followed by 7 numbers (e.g., ABC1234567)'],
     },
     passport: {
       type: String,
       trim: true,
+      uppercase: true,
       default: '',
+      validate: {
+        validator: function(v: string) {
+          if (!v) return true;
+          return /^([A-Z]{2}[0-9]{6}|[A-Z][0-9]{7})$/.test(v);
+        },
+        message: 'Passport number must be 2 capital letters followed by 6 numbers (e.g. AB123456) or 1 capital letter followed by 7 numbers (e.g. A1234567)',
+      },
     },
     country: {
       type: String,

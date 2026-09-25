@@ -41,26 +41,6 @@ export function HomePage() {
           </button>
         </div>
 
-        <div className="mt-16 bg-white rounded-lg shadow-md p-6">
-          <h3 className="text-xl font-bold text-blue-900 mb-4">Key Features</h3>
-          <div className="grid md:grid-cols-3 gap-4">
-            <div className="text-center">
-              <div className="text-3xl mb-2">🔒</div>
-              <p className="font-semibold text-blue-900">Aadhaar Verified</p>
-              <p className="text-sm text-gray-600">Secure identity verification</p>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl mb-2">👆</div>
-              <p className="font-semibold text-blue-900">Biometric Auth</p>
-              <p className="text-sm text-gray-600">Fingerprint authentication</p>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl mb-2">🌍</div>
-              <p className="font-semibold text-blue-900">Global Access</p>
-              <p className="text-sm text-gray-600">Vote from anywhere</p>
-            </div>
-          </div>
-        </div>
       </div>
     </Layout>
   );

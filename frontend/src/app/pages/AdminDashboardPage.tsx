@@ -12,10 +12,6 @@ function formatTime(t: string) {
 export function AdminDashboardPage() {
   const navigate = useNavigate();
 
-  const totalRegistered: number = JSON.parse(localStorage.getItem('registeredUsers') || '[]').length;
-  const votesCast: number = JSON.parse(localStorage.getItem('votesCast') || '0');
-  const turnout = totalRegistered > 0 ? ((votesCast / totalRegistered) * 100).toFixed(1) : '0.0';
-
   const electionSchedule = JSON.parse(localStorage.getItem('electionSchedule') || 'null') as {
     date: string; fromTime: string; toTime: string; status: string;
     allConstituencies: boolean; state?: string; district?: string;
@@ -155,25 +151,6 @@ export function AdminDashboardPage() {
               </button>
             );
           })}
-        </div>
-
-        {/* ── STATS ROW ── */}
-        <div className="mt-8 grid md:grid-cols-3 gap-6">
-          <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg shadow-lg p-6 text-white">
-            <p className="text-sm opacity-90 mb-2">Total Registered</p>
-            <p className="text-4xl font-bold">{totalRegistered.toLocaleString()}</p>
-            <p className="text-sm mt-2">NRI Voters</p>
-          </div>
-          <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-lg shadow-lg p-6 text-white">
-            <p className="text-sm opacity-90 mb-2">Votes Cast</p>
-            <p className="text-4xl font-bold">{votesCast.toLocaleString()}</p>
-            <p className="text-sm mt-2">Total</p>
-          </div>
-          <div className="bg-gradient-to-br from-green-600 to-green-700 rounded-lg shadow-lg p-6 text-white">
-            <p className="text-sm opacity-90 mb-2">Turnout</p>
-            <p className="text-4xl font-bold">{turnout}%</p>
-            <p className="text-sm mt-2">Participation</p>
-          </div>
         </div>
       </div>
     </Layout>

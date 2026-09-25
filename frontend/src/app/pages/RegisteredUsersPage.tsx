@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Layout } from '../components/Layout';
-import { Search, ArrowLeft, Pencil, Trash2, X, Save, ChevronDown, ChevronUp } from 'lucide-react';
+import { Search, ArrowLeft, Pencil, Trash2, X, Save, UserCheck } from 'lucide-react';
 
 interface User {
   id: number;
@@ -25,6 +25,28 @@ interface User {
   constituency: string;
 }
 
+function formatDobToDDMMYYYY(dob?: string): string {
+  if (!dob || !dob.trim()) return '—';
+  const clean = dob.trim();
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(clean)) return clean;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) {
+    const [year, month, day] = clean.split('-');
+    return `${day}/${month}/${year}`;
+  }
+  if (/^\d{2}-\d{2}-\d{4}$/.test(clean)) {
+    const [day, month, year] = clean.split('-');
+    return `${day}/${month}/${year}`;
+  }
+  const parsed = new Date(clean);
+  if (!isNaN(parsed.getTime())) {
+    const day = String(parsed.getDate()).padStart(2, '0');
+    const month = String(parsed.getMonth() + 1).padStart(2, '0');
+    const year = parsed.getFullYear();
+    return `${day}/${month}/${year}`;
+  }
+  return clean;
+}
+
 function Field({ label, value }: { label: string; value?: string }) {
   return (
     <div>
@@ -42,11 +64,104 @@ function SectionHeading({ title }: { title: string }) {
   );
 }
 
+function UserProfileCard({
+  user,
+  openEdit,
+  setDeleteConfirmId,
+}: {
+  user: User;
+  openEdit: (u: User) => void;
+  setDeleteConfirmId: (id: number) => void;
+}) {
+  return (
+    <div className="border-2 border-blue-200 rounded-xl overflow-hidden shadow-sm bg-white">
+      <div className="px-6 py-4 bg-gradient-to-r from-blue-900 to-blue-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-full bg-white/20 text-white font-black text-lg flex items-center justify-center flex-shrink-0">
+            {user.name.charAt(0).toUpperCase()}
+          </div>
+          <div>
+            <h3 className="text-xl font-bold text-white flex items-center gap-2">
+              {user.name}
+            </h3>
+            <p className="text-xs text-blue-200">
+              {user.country} &nbsp;•&nbsp; {user.assemblyConstituency || user.constituency}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => openEdit(user)}
+            className="flex items-center gap-1.5 px-4 py-2 bg-white text-blue-900 font-bold text-sm rounded-lg hover:bg-blue-50 transition-colors shadow-sm cursor-pointer"
+          >
+            <Pencil className="w-4 h-4" />
+            Edit User
+          </button>
+          <button
+            onClick={() => setDeleteConfirmId(user.id)}
+            className="flex items-center gap-1.5 px-4 py-2 bg-red-600 text-white font-bold text-sm rounded-lg hover:bg-red-700 transition-colors shadow-sm cursor-pointer"
+          >
+            <Trash2 className="w-4 h-4" />
+            Delete
+          </button>
+        </div>
+      </div>
+
+      <div className="p-6 space-y-6">
+        <div>
+          <SectionHeading title="Personal Information" />
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <Field label="Full Name" value={user.name} />
+            <Field label="Date of Birth" value={formatDobToDDMMYYYY(user.dob)} />
+            <Field label="Age" value={user.age ? `${user.age} years` : '—'} />
+          </div>
+        </div>
+
+        <div>
+          <SectionHeading title="Identity Information" />
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <Field label="Aadhaar Number" value={user.aadhaar} />
+            <Field label="Voter ID" value={user.voterId} />
+            <Field label="Passport Number" value={user.passport} />
+          </div>
+        </div>
+
+        <div>
+          <SectionHeading title="Current Residence (Abroad)" />
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <Field label="Country" value={user.country} />
+            <Field label="Current Place" value={user.currentPlace} />
+            <Field label="Current Pincode" value={user.currentPincode} />
+            <div className="col-span-2 md:col-span-3">
+              <Field label="Current Address" value={user.currentAddress} />
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <SectionHeading title="Indian Permanent Address" />
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div className="col-span-2 md:col-span-3">
+              <Field label="Address" value={user.indianAddress} />
+            </div>
+            <Field label="State" value={user.indianState} />
+            <Field label="District" value={user.indianDistrict} />
+            <Field label="Place / City / Town" value={user.indianPlace} />
+            <Field label="Assembly Constituency" value={user.assemblyConstituency} />
+            <Field label="Parliament Constituency" value={user.parliamentConstituency} />
+            <Field label="Pincode" value={user.indianPincode} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function RegisteredUsersPage() {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [users, setUsers] = useState<User[]>(JSON.parse(localStorage.getItem('registeredUsers') || '[]'));
-  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState<number | ''>('');
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [editForm, setEditForm] = useState<User | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
@@ -67,19 +182,46 @@ export function RegisteredUsersPage() {
     setEditForm(null);
   };
 
-  const setField = (field: keyof User) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-    setEditForm(prev => prev ? { ...prev, [field]: e.target.value } : prev);
+  const setField = (field: keyof User) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    let value = e.target.value;
+    if (field === 'voterId') {
+      value = value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10);
+    }
+    if (field === 'passport') {
+      value = value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
+    }
+    if (
+      field === 'currentAddress' ||
+      field === 'indianAddress' ||
+      field === 'indianPlace' ||
+      field === 'assemblyConstituency' ||
+      field === 'parliamentConstituency'
+    ) {
+      value = value.toUpperCase();
+    }
+    setEditForm(prev => prev ? { ...prev, [field]: value } : prev);
+  };
 
   const deleteUser = (id: number) => {
     const updated = users.filter(u => u.id !== id);
     setUsers(updated);
     localStorage.setItem('registeredUsers', JSON.stringify(updated));
     setDeleteConfirmId(null);
-    if (expandedId === id) setExpandedId(null);
+    if (selectedUserId === id) setSelectedUserId('');
   };
 
   const saveEdit = () => {
     if (!editForm) return;
+    const VOTER_ID_REGEX = /^[A-Z]{3}[0-9]{7}$/;
+    if (editForm.voterId && !VOTER_ID_REGEX.test(editForm.voterId.trim())) {
+      alert('Voter ID must be 3 capital letters followed by 7 numbers (e.g. ABC1234567).');
+      return;
+    }
+    const PASSPORT_REGEX = /^([A-Z]{2}[0-9]{6}|[A-Z][0-9]{7})$/;
+    if (editForm.passport && !PASSPORT_REGEX.test(editForm.passport.trim())) {
+      alert('Passport number must be 2 capital letters followed by 6 numbers (e.g. AB123456) or 1 capital letter followed by 7 numbers (e.g. A1234567).');
+      return;
+    }
     const updated = users.map(u => u.id === editForm.id ? editForm : u);
     setUsers(updated);
     localStorage.setItem('registeredUsers', JSON.stringify(updated));
@@ -104,114 +246,163 @@ export function RegisteredUsersPage() {
         <div className="bg-white rounded-lg shadow-xl p-8 border-t-4 border-blue-600">
           <div className="mb-6">
             <h2 className="text-3xl font-bold text-blue-900 mb-2">Registered Users</h2>
-            <p className="text-gray-600">{users.length} registered candidate{users.length !== 1 ? 's' : ''}</p>
+            <p className="text-gray-600">{users.length} registered voter{users.length !== 1 ? 's' : ''}</p>
           </div>
 
-          <div className="mb-6 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-600 focus:outline-none"
-              placeholder="Search by name, Aadhaar, or country..."
-            />
-          </div>
-
-          {filteredUsers.length === 0 ? (
-            <div className="py-16 text-center text-gray-500">
-              {users.length === 0
-                ? 'No users registered yet. Use Create User to add candidates.'
-                : 'No results match your search.'}
+          {/* Search bar & Dropdown Selector */}
+          <div className="space-y-4 bg-gray-50 p-5 rounded-xl border border-gray-200">
+            {/* Search Input */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  if (e.target.value) {
+                    setSelectedUserId('');
+                  }
+                }}
+                className="w-full pl-10 pr-10 py-2.5 border-2 border-gray-300 rounded-lg focus:border-blue-600 focus:outline-none bg-white text-sm"
+                placeholder="Search registered voter by name, Aadhaar, or country..."
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer p-1"
+                  title="Clear search"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
             </div>
-          ) : (
-            <div className="space-y-4">
-              {filteredUsers.map((user, index) => (
-                <div key={user.id} className="border-2 border-gray-200 rounded-xl overflow-hidden">
-                  {/* Row header */}
-                  <div
-                    className="flex items-center justify-between px-5 py-4 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors"
-                    onClick={() => setExpandedId(expandedId === user.id ? null : user.id)}
+
+            {/* Select User Dropdown */}
+            <div className="pt-3 border-t border-gray-200">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-1.5">
+                <label className="text-xs font-bold text-blue-950 uppercase tracking-wider flex items-center gap-1.5">
+                  <UserCheck className="w-4 h-4 text-blue-600" />
+                  Select User to View Details <span className="text-blue-600 font-bold">({users.length} registered)</span>
+                </label>
+                {selectedUserId !== '' && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedUserId('')}
+                    className="text-xs text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1 self-start sm:self-auto cursor-pointer"
                   >
-                    <div className="flex items-center gap-4">
-                      <span className="w-7 h-7 rounded-full bg-gradient-to-br from-orange-500 to-green-600 text-white text-sm font-bold flex items-center justify-center flex-shrink-0">
-                        {index + 1}
-                      </span>
-                      <div>
-                        <p className="font-bold text-blue-900">{user.name}</p>
-                        <p className="text-xs text-gray-500">{user.aadhaar} &bull; {user.country} &bull; {user.constituency}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); openEdit(user); }}
-                        className="flex items-center gap-1 px-3 py-1.5 bg-blue-900 text-white text-sm font-semibold rounded-lg hover:bg-blue-800 transition-colors"
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                        Edit
-                      </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(user.id); }}
-                        className="flex items-center gap-1 px-3 py-1.5 bg-red-600 text-white text-sm font-semibold rounded-lg hover:bg-red-700 transition-colors"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        Delete
-                      </button>
-                      {expandedId === user.id
-                        ? <ChevronUp className="w-5 h-5 text-gray-500" />
-                        : <ChevronDown className="w-5 h-5 text-gray-500" />}
-                    </div>
-                  </div>
-
-                  {/* Expanded detail */}
-                  {expandedId === user.id && (
-                    <div className="px-6 py-5 border-t border-gray-200 bg-white">
-                      <SectionHeading title="Personal Information" />
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-2">
-                        <Field label="Full Name" value={user.name} />
-                        <Field label="Date of Birth" value={user.dob} />
-                        <Field label="Age" value={user.age} />
-                      </div>
-
-                      <SectionHeading title="Identity Information" />
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-2">
-                        <Field label="Aadhaar Number" value={user.aadhaar} />
-                        <Field label="Voter ID" value={user.voterId} />
-                        <Field label="Passport Number" value={user.passport} />
-                      </div>
-
-                      <SectionHeading title="Current Residence (Abroad)" />
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-2">
-                        <Field label="Country" value={user.country} />
-                        <Field label="Current Place" value={user.currentPlace} />
-                        <Field label="Current Pincode" value={user.currentPincode} />
-                        <div className="col-span-2 md:col-span-3">
-                          <Field label="Current Address" value={user.currentAddress} />
-                        </div>
-                      </div>
-
-                      <SectionHeading title="Indian Permanent Address" />
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                        <div className="col-span-2 md:col-span-3">
-                          <Field label="Address" value={user.indianAddress} />
-                        </div>
-                        <Field label="State" value={user.indianState} />
-                        <Field label="District" value={user.indianDistrict} />
-                        <Field label="Place / City / Town" value={user.indianPlace} />
-                        <Field label="Assembly Constituency" value={user.assemblyConstituency} />
-                        <Field label="Parliament Constituency" value={user.parliamentConstituency} />
-                        <Field label="Pincode" value={user.indianPincode} />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
+                    <X className="w-3.5 h-3.5" />
+                    Clear Selection
+                  </button>
+                )}
+              </div>
+              <select
+                value={selectedUserId}
+                onChange={(e) => {
+                  const val = e.target.value ? Number(e.target.value) : '';
+                  setSelectedUserId(val);
+                  if (val !== '') {
+                    setSearchTerm('');
+                  }
+                }}
+                className="w-full px-4 py-2.5 text-sm font-semibold border-2 border-blue-400 focus:border-blue-600 rounded-lg outline-none bg-white text-gray-800 shadow-sm transition-all cursor-pointer"
+              >
+                <option value="">-- Choose User to View Details --</option>
+                {users.map((u, idx) => (
+                  <option key={u.id} value={u.id}>
+                    #{idx + 1} — {u.name} ({u.country} · {u.assemblyConstituency || u.constituency})
+                  </option>
+                ))}
+              </select>
             </div>
-          )}
-
-          <div className="mt-5 text-sm text-gray-500">
-            Showing {filteredUsers.length} of {users.length} registered users
           </div>
+
+          {/* User Details Section */}
+          {(() => {
+            if (users.length === 0) {
+              return (
+                <div className="py-16 text-center text-gray-500">
+                  No users registered yet. Use Create User to add voters.
+                </div>
+              );
+            }
+
+            const isSearching = searchTerm.trim().length > 0;
+            const selectedUser = users.find(u => u.id === selectedUserId);
+
+            // 1. Searching by Name, Aadhaar, or Country - Immediately display matching voters
+            if (isSearching) {
+              if (filteredUsers.length === 0) {
+                return (
+                  <div className="py-16 px-6 text-center bg-gray-50 rounded-xl border border-gray-200 mt-6">
+                    <Search className="w-10 h-10 text-gray-400 mx-auto mb-3" />
+                    <h4 className="text-base font-bold text-gray-800">No voters found</h4>
+                    <p className="text-sm text-gray-500 mt-1">
+                      No registered voter matched <strong className="text-gray-800">"{searchTerm}"</strong>.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setSearchTerm('')}
+                      className="mt-3 text-xs text-blue-600 hover:text-blue-800 font-semibold inline-flex items-center gap-1 cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" /> Clear Search
+                    </button>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="mt-6 space-y-6">
+                  <div className="flex items-center justify-between px-1">
+                    <span className="text-sm font-semibold text-gray-700">
+                      Showing {filteredUsers.length} voter{filteredUsers.length === 1 ? '' : 's'} matching "{searchTerm}"
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setSearchTerm('')}
+                      className="text-xs text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1 cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" /> Clear Search
+                    </button>
+                  </div>
+                  {filteredUsers.map((u) => (
+                    <UserProfileCard
+                      key={u.id}
+                      user={u}
+                      openEdit={openEdit}
+                      setDeleteConfirmId={setDeleteConfirmId}
+                    />
+                  ))}
+                </div>
+              );
+            }
+
+            // 2. Selected from Dropdown
+            if (selectedUser) {
+              return (
+                <div className="mt-6">
+                  <UserProfileCard
+                    user={selectedUser}
+                    openEdit={openEdit}
+                    setDeleteConfirmId={setDeleteConfirmId}
+                  />
+                </div>
+              );
+            }
+
+            // 3. User Details Hidden (Default state when neither searching nor selected)
+            return (
+              <div className="py-16 px-6 text-center bg-gray-50/70 rounded-xl border border-gray-200 mt-6">
+                <div className="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <UserCheck className="w-7 h-7 text-blue-700" />
+                </div>
+                <h4 className="text-base font-bold text-gray-800">User Details Hidden</h4>
+                <p className="text-sm text-gray-500 mt-1 max-w-md mx-auto">
+                  Type a name in the search box above or choose a voter from the <strong className="text-blue-700">"Select User to View Details"</strong> dropdown to view their details.
+                </p>
+              </div>
+            );
+          })()}
         </div>
       </div>
 
@@ -284,13 +475,23 @@ export function RegisteredUsersPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">Voter ID</label>
-                  <input value={editForm.voterId || ''} onChange={setField('voterId')}
-                    className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none" />
+                  <input
+                    value={editForm.voterId || ''}
+                    onChange={setField('voterId')}
+                    placeholder="ABC1234567"
+                    maxLength={10}
+                    className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none uppercase font-mono tracking-wider"
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">Passport Number</label>
-                  <input value={editForm.passport || ''} onChange={setField('passport')}
-                    className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none" />
+                  <input
+                    value={editForm.passport || ''}
+                    onChange={setField('passport')}
+                    placeholder="A1234567 or AB123456"
+                    maxLength={8}
+                    className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none uppercase font-mono tracking-wider"
+                  />
                 </div>
               </div>
 
@@ -309,7 +510,7 @@ export function RegisteredUsersPage() {
                 <div className="md:col-span-2">
                   <label className="block text-sm font-semibold text-gray-700 mb-1">Current Address</label>
                   <textarea value={editForm.currentAddress || ''} onChange={setField('currentAddress')} rows={2}
-                    className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none" />
+                    className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none uppercase" />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">Current Pincode</label>
@@ -323,7 +524,7 @@ export function RegisteredUsersPage() {
                 <div className="md:col-span-2">
                   <label className="block text-sm font-semibold text-gray-700 mb-1">Address</label>
                   <textarea value={editForm.indianAddress || ''} onChange={setField('indianAddress')} rows={2}
-                    className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none" />
+                    className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none uppercase" />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">State</label>
@@ -338,17 +539,17 @@ export function RegisteredUsersPage() {
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">Place / City / Town</label>
                   <input value={editForm.indianPlace || ''} onChange={setField('indianPlace')}
-                    className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none" />
+                    className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none uppercase" />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">Assembly Constituency</label>
                   <input value={editForm.assemblyConstituency || ''} onChange={setField('assemblyConstituency')}
-                    className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none" />
+                    className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none uppercase" />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">Parliament Constituency</label>
                   <input value={editForm.parliamentConstituency || ''} onChange={setField('parliamentConstituency')}
-                    className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none" />
+                    className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none uppercase" />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">Pincode</label>

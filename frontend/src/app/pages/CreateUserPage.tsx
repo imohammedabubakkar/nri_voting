@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Layout } from '../components/Layout';
-import { Save, ArrowLeft, AlertCircle } from 'lucide-react';
+import { Save, ArrowLeft, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { DISTRICTS_BY_STATE } from '../data/indiaData';
 
 const COUNTRIES = [
@@ -291,8 +291,102 @@ export function CreateUserPage() {
     }));
   }
 
+  const VOTER_ID_REGEX = /^[A-Z]{3}[0-9]{7}$/;
+  const isVoterIdValid = VOTER_ID_REGEX.test(form.voterId.trim());
+
+  const getVoterIdStatus = () => {
+    const val = form.voterId.trim();
+    if (!val) return null;
+    if (dupErrors.voterId) {
+      return { type: 'error' as const, message: dupErrors.voterId };
+    }
+    const letterPart = val.slice(0, Math.min(val.length, 3));
+    if (!/^[A-Z]+$/.test(letterPart)) {
+      return { type: 'error' as const, message: 'First 3 characters must be capital letters (A-Z)' };
+    }
+    if (val.length < 3) {
+      return { type: 'info' as const, message: `Enter ${3 - val.length} more capital letter(s) (e.g. ABC)` };
+    }
+    if (val.length > 3) {
+      const numPart = val.slice(3);
+      if (!/^[0-9]+$/.test(numPart)) {
+        return { type: 'error' as const, message: 'Characters after the first 3 letters must be numbers only (0-9)' };
+      }
+    }
+    if (val.length < 10) {
+      return { type: 'info' as const, message: `Enter ${10 - val.length} more number(s) (e.g. ABC1234567)` };
+    }
+    if (VOTER_ID_REGEX.test(val)) {
+      return { type: 'success' as const, message: 'Valid Voter ID format' };
+    }
+    return { type: 'error' as const, message: 'Must be 3 capital letters followed by 7 numbers (e.g. ABC1234567)' };
+  };
+
+  const voterIdStatus = getVoterIdStatus();
+
+  const PASSPORT_REGEX = /^([A-Z]{2}[0-9]{6}|[A-Z][0-9]{7})$/;
+  const isPassportValid = PASSPORT_REGEX.test(form.passport.trim());
+
+  const getPassportStatus = () => {
+    const val = form.passport.trim();
+    if (!val) return null;
+    if (dupErrors.passport) {
+      return { type: 'error' as const, message: dupErrors.passport };
+    }
+    // 1st character must be a capital letter
+    if (!/^[A-Z]/.test(val)) {
+      return { type: 'error' as const, message: 'First character must be a capital letter (A-Z)' };
+    }
+    if (val.length === 1) {
+      return { type: 'info' as const, message: 'Enter a 2nd letter (e.g. AB123456) or a number (e.g. A1234567)' };
+    }
+    // Check if 2nd char is a letter or number
+    const isTwoLetter = /^[A-Z]{2}/.test(val);
+    if (isTwoLetter) {
+      const numPart = val.slice(2);
+      if (numPart.length > 0 && !/^[0-9]+$/.test(numPart)) {
+        return { type: 'error' as const, message: 'Characters after the first 2 letters must be numbers only (0-9)' };
+      }
+      if (val.length < 8) {
+        return { type: 'info' as const, message: `Enter ${8 - val.length} more number(s) (Format: 2 letters + 6 numbers)` };
+      }
+    } else {
+      const numPart = val.slice(1);
+      if (numPart.length > 0 && !/^[0-9]+$/.test(numPart)) {
+        return { type: 'error' as const, message: 'Characters after the first letter must be numbers only (0-9)' };
+      }
+      if (val.length < 8) {
+        return { type: 'info' as const, message: `Enter ${8 - val.length} more number(s) (Format: 1 letter + 7 numbers)` };
+      }
+    }
+    if (PASSPORT_REGEX.test(val)) {
+      return { type: 'success' as const, message: 'Valid Passport format' };
+    }
+    return { type: 'error' as const, message: 'Must be 2 letters + 6 numbers (e.g. AB123456) or 1 letter + 7 numbers (e.g. A1234567)' };
+  };
+
+  const passportStatus = getPassportStatus();
+
   const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const value = e.target.value;
+    let value = e.target.value;
+    if (field === 'voterId') {
+      // Automatically convert to uppercase, remove spaces/symbols, limit to 10 chars
+      value = value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10);
+    }
+    if (field === 'passport') {
+      // Automatically convert to uppercase, remove spaces/symbols, limit to 8 chars
+      value = value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
+    }
+    if (
+      field === 'currentAddress' ||
+      field === 'indianAddress' ||
+      field === 'indianPlace' ||
+      field === 'assemblyConstituency' ||
+      field === 'parliamentConstituency'
+    ) {
+      // Automatically convert to capital letters
+      value = value.toUpperCase();
+    }
     setForm(prev => {
       const updated = { ...prev, [field]: value };
       if (field === 'dob') updated.age = calculateAge(value);
@@ -321,6 +415,16 @@ export function CreateUserPage() {
     }
     if (!form.age) {
       setSubmitError('Please enter a valid date of birth.');
+      return;
+    }
+
+    if (!VOTER_ID_REGEX.test(form.voterId.trim())) {
+      setSubmitError('Voter ID must be 3 capital letters followed by 7 numbers (e.g., ABC1234567).');
+      return;
+    }
+
+    if (!PASSPORT_REGEX.test(form.passport.trim())) {
+      setSubmitError('Passport number must be 2 capital letters followed by 6 numbers (e.g., AB123456) or 1 capital letter followed by 7 numbers (e.g., A1234567).');
       return;
     }
 
@@ -420,29 +524,97 @@ export function CreateUserPage() {
                   )}
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Voter ID</label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-semibold text-gray-700">Voter ID</label>
+                    <span className="text-xs text-gray-500 font-mono">
+                      {form.voterId.length}/10
+                    </span>
+                  </div>
                   <input
-                    type="text" value={form.voterId} onChange={set('voterId')}
-                    className={`${inputCls} ${dupErrors.voterId ? 'border-red-400' : ''}`}
-                    placeholder="Voter ID" required
+                    type="text"
+                    value={form.voterId}
+                    onChange={set('voterId')}
+                    className={`${inputCls} uppercase tracking-wider font-mono ${
+                      voterIdStatus?.type === 'error'
+                        ? 'border-red-400 focus:border-red-500'
+                        : voterIdStatus?.type === 'success'
+                        ? 'border-green-500 focus:border-green-600 bg-green-50/20'
+                        : voterIdStatus?.type === 'info'
+                        ? 'border-blue-300 focus:border-blue-500'
+                        : ''
+                    }`}
+                    placeholder="ABC1234567"
+                    maxLength={10}
+                    required
                   />
-                  {dupErrors.voterId && (
-                    <div className="flex items-center gap-1.5 mt-1.5 text-red-600 text-sm font-semibold">
-                      <AlertCircle className="w-4 h-4 flex-shrink-0" />{dupErrors.voterId}
+                  {voterIdStatus ? (
+                    <div
+                      className={`flex items-center gap-1.5 mt-1.5 text-sm font-semibold ${
+                        voterIdStatus.type === 'error'
+                          ? 'text-red-600'
+                          : voterIdStatus.type === 'success'
+                          ? 'text-green-600'
+                          : 'text-blue-600'
+                      }`}
+                    >
+                      {voterIdStatus.type === 'success' ? (
+                        <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                      )}
+                      {voterIdStatus.message}
                     </div>
+                  ) : (
+                    <p className="text-xs text-gray-500 mt-1.5">
+                      Must be 3 capital letters followed by 7 numbers (e.g. ABC1234567)
+                    </p>
                   )}
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Passport Number</label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-semibold text-gray-700">Passport Number</label>
+                    <span className="text-xs text-gray-500 font-mono">
+                      {form.passport.length}/8
+                    </span>
+                  </div>
                   <input
-                    type="text" value={form.passport} onChange={set('passport')}
-                    className={`${inputCls} ${dupErrors.passport ? 'border-red-400' : ''}`}
-                    placeholder="Passport No." required
+                    type="text"
+                    value={form.passport}
+                    onChange={set('passport')}
+                    className={`${inputCls} uppercase tracking-wider font-mono ${
+                      passportStatus?.type === 'error'
+                        ? 'border-red-400 focus:border-red-500'
+                        : passportStatus?.type === 'success'
+                        ? 'border-green-500 focus:border-green-600 bg-green-50/20'
+                        : passportStatus?.type === 'info'
+                        ? 'border-blue-300 focus:border-blue-500'
+                        : ''
+                    }`}
+                    placeholder="A1234567 or AB123456"
+                    maxLength={8}
+                    required
                   />
-                  {dupErrors.passport && (
-                    <div className="flex items-center gap-1.5 mt-1.5 text-red-600 text-sm font-semibold">
-                      <AlertCircle className="w-4 h-4 flex-shrink-0" />{dupErrors.passport}
+                  {passportStatus ? (
+                    <div
+                      className={`flex items-center gap-1.5 mt-1.5 text-sm font-semibold ${
+                        passportStatus.type === 'error'
+                          ? 'text-red-600'
+                          : passportStatus.type === 'success'
+                          ? 'text-green-600'
+                          : 'text-blue-600'
+                      }`}
+                    >
+                      {passportStatus.type === 'success' ? (
+                        <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                      )}
+                      {passportStatus.message}
                     </div>
+                  ) : (
+                    <p className="text-xs text-gray-500 mt-1.5">
+                      1 letter + 7 numbers (e.g. A1234567) or 2 letters + 6 numbers (e.g. AB123456)
+                    </p>
                   )}
                 </div>
               </div>
@@ -470,7 +642,14 @@ export function CreateUserPage() {
 
                 <div className="md:col-span-2">
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Current Address</label>
-                  <textarea value={form.currentAddress} onChange={set('currentAddress')} className={inputCls} rows={2} placeholder="Full address" required />
+                  <textarea
+                    value={form.currentAddress}
+                    onChange={set('currentAddress')}
+                    className={`${inputCls} uppercase`}
+                    rows={2}
+                    placeholder="Full address (in capital letters)"
+                    required
+                  />
                 </div>
 
                 <div>
@@ -486,7 +665,14 @@ export function CreateUserPage() {
               <div className="grid md:grid-cols-2 gap-4">
                 <div className="md:col-span-2">
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Address</label>
-                  <textarea value={form.indianAddress} onChange={set('indianAddress')} className={inputCls} rows={2} placeholder="Door No., Street, Area" required />
+                  <textarea
+                    value={form.indianAddress}
+                    onChange={set('indianAddress')}
+                    className={`${inputCls} uppercase`}
+                    rows={2}
+                    placeholder="Door No., Street, Area (in capital letters)"
+                    required
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">State</label>
@@ -504,15 +690,36 @@ export function CreateUserPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Place / City / Town</label>
-                  <input type="text" value={form.indianPlace} onChange={set('indianPlace')} className={inputCls} placeholder="City / Town / Village" required />
+                  <input
+                    type="text"
+                    value={form.indianPlace}
+                    onChange={set('indianPlace')}
+                    className={`${inputCls} uppercase`}
+                    placeholder="City / Town / Village"
+                    required
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Assembly Constituency</label>
-                  <input type="text" value={form.assemblyConstituency} onChange={set('assemblyConstituency')} className={inputCls} placeholder="Assembly constituency" required />
+                  <input
+                    type="text"
+                    value={form.assemblyConstituency}
+                    onChange={set('assemblyConstituency')}
+                    className={`${inputCls} uppercase`}
+                    placeholder="Assembly constituency"
+                    required
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Parliament Constituency</label>
-                  <input type="text" value={form.parliamentConstituency} onChange={set('parliamentConstituency')} className={inputCls} placeholder="Parliament constituency" required />
+                  <input
+                    type="text"
+                    value={form.parliamentConstituency}
+                    onChange={set('parliamentConstituency')}
+                    className={`${inputCls} uppercase`}
+                    placeholder="Parliament constituency"
+                    required
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Pincode</label>
@@ -531,7 +738,12 @@ export function CreateUserPage() {
             <div className="flex gap-4">
               <button
                 type="submit"
-                disabled={ageIneligible || hasDupError}
+                disabled={
+                  ageIneligible ||
+                  hasDupError ||
+                  (form.voterId.length > 0 && !isVoterIdValid) ||
+                  (form.passport.length > 0 && !isPassportValid)
+                }
                 className="flex-1 bg-gradient-to-r from-orange-500 to-orange-600 text-white py-3 rounded-lg font-semibold hover:from-orange-600 hover:to-orange-700 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Save className="w-5 h-5" />

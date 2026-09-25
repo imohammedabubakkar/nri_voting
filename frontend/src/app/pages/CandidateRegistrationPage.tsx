@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { Layout } from '../components/Layout';
-import { ArrowLeft, UserPlus, Pencil, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowLeft, UserPlus, Pencil, Trash2, UserCheck, X } from 'lucide-react';
 import { DISTRICTS_BY_STATE } from '../data/indiaData';
 import { PARTIES, Party } from '../data/partiesData';
 import { PARTY_SYMBOL_IMAGES } from '../data/partySymbolImages';
@@ -35,6 +35,28 @@ function calcAge(dob: string): string {
   return age >= 0 ? String(age) : '';
 }
 
+function formatDobToDDMMYYYY(dob?: string): string {
+  if (!dob || !dob.trim()) return '—';
+  const clean = dob.trim();
+  if (/^\d{2}-\d{2}-\d{4}$/.test(clean)) return clean;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) {
+    const [year, month, day] = clean.split('-');
+    return `${day}-${month}-${year}`;
+  }
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(clean)) {
+    const [day, month, year] = clean.split('/');
+    return `${day}-${month}-${year}`;
+  }
+  const parsed = new Date(clean);
+  if (!isNaN(parsed.getTime())) {
+    const day = String(parsed.getDate()).padStart(2, '0');
+    const month = String(parsed.getMonth() + 1).padStart(2, '0');
+    const year = parsed.getFullYear();
+    return `${day}-${month}-${year}`;
+  }
+  return clean;
+}
+
 const BLANK_FORM = {
   electionType: '' as ElectionType,
   state: '',
@@ -60,7 +82,7 @@ export function CandidateRegistrationPage() {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [editId, setEditId] = useState<number | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
-  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [selectedCandidateId, setSelectedCandidateId] = useState<number | ''>('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -171,11 +193,14 @@ export function CandidateRegistrationPage() {
         c.id === editId ? { ...form, id: editId, partySymbolImage: form.partySymbolImage } as Candidate : c
       );
       saveToStorage(updated);
+      setSelectedCandidateId(editId);
       setSuccess('Candidate updated successfully!');
     } else {
-      const newCandidate: Candidate = { ...form, id: Date.now() } as Candidate;
+      const newId = Date.now();
+      const newCandidate: Candidate = { ...form, id: newId } as Candidate;
       const updated = [...candidates, newCandidate];
       saveToStorage(updated);
+      setSelectedCandidateId(newId);
       setSuccess('Candidate registered successfully!');
     }
 
@@ -208,6 +233,9 @@ export function CandidateRegistrationPage() {
   function handleDelete(id: number) {
     const updated = candidates.filter(c => c.id !== id);
     saveToStorage(updated);
+    if (selectedCandidateId === id) {
+      setSelectedCandidateId('');
+    }
     setDeleteId(null);
     setSuccess('Candidate deleted.');
     setTimeout(() => setSuccess(''), 2500);
@@ -440,12 +468,14 @@ export function CandidateRegistrationPage() {
             )}
 
             {/* Registered Candidates List */}
-            <div className="border-2 border-gray-200 rounded-xl overflow-hidden">
+            <div className="border-2 border-gray-200 rounded-xl overflow-hidden shadow-sm">
               <div className="px-6 py-4 bg-gradient-to-r from-orange-500 to-green-600 flex items-center justify-between">
-                <h3 className="text-lg font-bold text-white">Registered Candidates</h3>
-                <span className="bg-white text-orange-600 font-bold text-sm px-3 py-1 rounded-full">
-                  {candidates.length} Total
-                </span>
+                <div className="flex items-center gap-3">
+                  <h3 className="text-lg font-bold text-white">Registered Candidates</h3>
+                  <span className="bg-white text-orange-600 font-bold text-sm px-3 py-0.5 rounded-full">
+                    {candidates.length} Total
+                  </span>
+                </div>
               </div>
 
               {candidates.length === 0 ? (
@@ -475,149 +505,216 @@ export function CandidateRegistrationPage() {
                   (!filterConstituency || c.constituency === filterConstituency)
                 );
 
+                const selectedCandidate = candidates.find(c => c.id === selectedCandidateId);
+
                 return (
                   <>
-                    {/* Filter Bar */}
-                    <div className="px-6 py-4 bg-gray-50 border-b border-gray-200 grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                      {/* State */}
+                    {/* Filter and Selection Section */}
+                    <div className="p-6 bg-gray-50 border-b border-gray-200 space-y-4">
+                      {/* Regional Filters */}
                       <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">State / UT</label>
-                        <select
-                          value={filterState}
-                          onChange={e => { setFilterState(e.target.value); setFilterDistrict(''); setFilterConstituency(''); }}
-                          className={selectCls}
-                        >
-                          <option value="">All States</option>
-                          {fStates.map(s => <option key={s} value={s}>{s}</option>)}
-                        </select>
+                        <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+                          Filter by Region (Optional)
+                        </p>
+                        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                          {/* State */}
+                          <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">State / UT</label>
+                            <select
+                              value={filterState}
+                              onChange={e => {
+                                setFilterState(e.target.value);
+                                setFilterDistrict('');
+                                setFilterConstituency('');
+                              }}
+                              className={selectCls}
+                            >
+                              <option value="">All States</option>
+                              {fStates.map(s => <option key={s} value={s}>{s}</option>)}
+                            </select>
+                          </div>
+
+                          {/* District */}
+                          <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">District</label>
+                            <select
+                              value={filterDistrict}
+                              onChange={e => {
+                                setFilterDistrict(e.target.value);
+                                setFilterConstituency('');
+                              }}
+                              className={selectCls}
+                              disabled={!filterState}
+                            >
+                              <option value="">All Districts</option>
+                              {fDistricts.map(d => <option key={d} value={d}>{d}</option>)}
+                            </select>
+                          </div>
+
+                          {/* Constituency Type */}
+                          <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Constituency Type</label>
+                            <select
+                              value={filterElectionType}
+                              onChange={e => {
+                                setFilterElectionType(e.target.value as ElectionType);
+                                setFilterConstituency('');
+                              }}
+                              className={selectCls}
+                            >
+                              <option value="">All Types</option>
+                              <option value="assembly">Assembly Constituency</option>
+                              <option value="parliament">Parliament Constituency</option>
+                            </select>
+                          </div>
+
+                          {/* Constituency Name */}
+                          <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">
+                              {filterElectionType === 'assembly' ? 'Assembly Constituency' : filterElectionType === 'parliament' ? 'Parliament Constituency' : 'Constituency Name'}
+                            </label>
+                            <select
+                              value={filterConstituency}
+                              onChange={e => setFilterConstituency(e.target.value)}
+                              className={selectCls}
+                              disabled={fConstituencies.length === 0}
+                            >
+                              <option value="">All Constituencies</option>
+                              {fConstituencies.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                          </div>
+                        </div>
                       </div>
 
-                      {/* District */}
-                      <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">District</label>
+                      {/* ── SELECT CANDIDATE DROPDOWN ── */}
+                      <div className="pt-3 border-t border-gray-200">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-1.5">
+                          <label className="text-xs font-bold text-blue-900 uppercase tracking-wider flex items-center gap-1.5">
+                            <UserCheck className="w-4 h-4 text-orange-600" />
+                            Select Candidate <span className="text-orange-600 font-bold">({filtered.length} available)</span>
+                          </label>
+                          {selectedCandidateId !== '' && (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedCandidateId('')}
+                              className="text-xs text-orange-600 hover:text-orange-800 font-semibold flex items-center gap-1 self-start sm:self-auto cursor-pointer"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                              Clear Selection
+                            </button>
+                          )}
+                        </div>
                         <select
-                          value={filterDistrict}
-                          onChange={e => { setFilterDistrict(e.target.value); setFilterConstituency(''); }}
-                          className={selectCls}
-                          disabled={!filterState}
+                          value={selectedCandidateId}
+                          onChange={e => setSelectedCandidateId(e.target.value ? Number(e.target.value) : '')}
+                          className="w-full px-4 py-2.5 text-sm font-semibold border-2 border-orange-400 focus:border-orange-600 rounded-lg outline-none bg-white text-gray-800 shadow-sm transition-all cursor-pointer"
                         >
-                          <option value="">All Districts</option>
-                          {fDistricts.map(d => <option key={d} value={d}>{d}</option>)}
-                        </select>
-                      </div>
-
-                      {/* Constituency Type */}
-                      <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Constituency Type</label>
-                        <select
-                          value={filterElectionType}
-                          onChange={e => { setFilterElectionType(e.target.value as ElectionType); setFilterConstituency(''); }}
-                          className={selectCls}
-                        >
-                          <option value="">All Types</option>
-                          <option value="assembly">Assembly Constituency</option>
-                          <option value="parliament">Parliament Constituency</option>
-                        </select>
-                      </div>
-
-                      {/* Constituency Name */}
-                      <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">
-                          {filterElectionType === 'assembly' ? 'Assembly Constituency' : filterElectionType === 'parliament' ? 'Parliament Constituency' : 'Constituency Name'}
-                        </label>
-                        <select
-                          value={filterConstituency}
-                          onChange={e => setFilterConstituency(e.target.value)}
-                          className={selectCls}
-                          disabled={fConstituencies.length === 0}
-                        >
-                          <option value="">All Constituencies</option>
-                          {fConstituencies.map(c => <option key={c} value={c}>{c}</option>)}
+                          <option value="">-- Choose Candidate to View Details --</option>
+                          {filtered.map((c, idx) => (
+                            <option key={c.id} value={c.id}>
+                              #{idx + 1} — {c.name} ({c.partyName} · {c.constituency})
+                            </option>
+                          ))}
                         </select>
                       </div>
                     </div>
 
-                    {/* Results count */}
-                    <div className="px-6 py-2 bg-white border-b border-gray-100 text-xs text-gray-500 font-semibold">
-                      Showing {filtered.length} of {candidates.length} candidate{candidates.length !== 1 ? 's' : ''}
-                    </div>
-
-                    {filtered.length === 0 ? (
-                      <div className="py-10 text-center text-gray-400">
-                        <p className="font-semibold">No candidates match the selected filters.</p>
+                    {/* Candidate Details Section */}
+                    {!selectedCandidate ? (
+                      <div className="py-14 px-6 text-center bg-white">
+                        <div className="w-14 h-14 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                          <UserCheck className="w-7 h-7 text-orange-600" />
+                        </div>
+                        <h4 className="text-base font-bold text-gray-800">Candidate Details Hidden</h4>
+                        <p className="text-sm text-gray-500 mt-1 max-w-md mx-auto">
+                          Please choose a candidate from the <strong className="text-orange-600">"Select Candidate"</strong> dropdown above to view their details.
+                        </p>
                       </div>
                     ) : (
-                      <div className="divide-y divide-gray-100">
-                        {filtered.map((c, idx) => (
-                          <div key={c.id} className="hover:bg-orange-50 transition-colors">
-                            <div
-                              className="flex items-center gap-4 px-6 py-4 cursor-pointer"
-                              onClick={() => setExpandedId(expandedId === c.id ? null : c.id)}
-                            >
-                              <div className="w-9 h-9 flex-shrink-0 bg-orange-100 text-orange-700 rounded-full flex items-center justify-center font-bold text-sm">
-                                {idx + 1}
-                              </div>
-                              <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center">
-                                {c.partySymbolImage ? (
-                                  <img src={c.partySymbolImage} alt={c.partyName} className="w-10 h-10 object-contain" />
-                                ) : (
-                                  <span className="text-3xl">{c.partySymbol}</span>
-                                )}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="font-bold text-blue-900 truncate">{c.name}</p>
-                                <p className="text-sm text-gray-500 truncate">
-                                  {c.state} &nbsp;·&nbsp; {c.district} &nbsp;·&nbsp; {electionLabel(c.electionType)} &nbsp;·&nbsp; {c.constituency}
-                                </p>
-                              </div>
-                              <div className="flex items-center gap-2 flex-shrink-0">
-                                <button
-                                  onClick={e => { e.stopPropagation(); handleEdit(c); }}
-                                  className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
-                                  title="Edit"
-                                >
-                                  <Pencil className="w-4 h-4" />
-                                </button>
-                                <button
-                                  onClick={e => { e.stopPropagation(); setDeleteId(c.id); }}
-                                  className="p-1.5 text-red-500 hover:bg-red-100 rounded-lg transition-colors"
-                                  title="Delete"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                                {expandedId === c.id ? (
-                                  <ChevronUp className="w-5 h-5 text-gray-400" />
-                                ) : (
-                                  <ChevronDown className="w-5 h-5 text-gray-400" />
-                                )}
-                              </div>
+                      <div className="p-6 bg-white border-t border-orange-200">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-gray-100">
+                          <div className="flex items-center gap-4">
+                            <div className="w-16 h-16 bg-orange-50 border-2 border-orange-200 rounded-2xl flex items-center justify-center p-2 flex-shrink-0">
+                              {selectedCandidate.partySymbolImage ? (
+                                <img
+                                  src={selectedCandidate.partySymbolImage}
+                                  alt={selectedCandidate.partyName}
+                                  className="w-full h-full object-contain"
+                                />
+                              ) : (
+                                <span className="text-3xl">{selectedCandidate.partySymbol}</span>
+                              )}
                             </div>
-
-                            {expandedId === c.id && (
-                              <div className="px-6 pb-5 pt-1 bg-white border-t border-orange-100">
-                                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                  <Detail label="Election Type" value={electionLabel(c.electionType)} />
-                                  <Detail label="State / UT" value={c.state} />
-                                  <Detail label="District" value={c.district} />
-                                  <Detail label="Constituency" value={c.constituency} />
-                                  <Detail label="Date of Birth" value={c.dob} />
-                                  <Detail label="Age" value={c.age ? `${c.age} years` : '—'} />
-                                  <div className="md:col-span-2 lg:col-span-1">
-                                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Party</p>
-                                    <div className="flex items-center gap-2">
-                                      {c.partySymbolImage ? (
-                                        <img src={c.partySymbolImage} alt={c.partyName} className="w-10 h-10 object-contain flex-shrink-0" />
-                                      ) : (
-                                        <span className="text-2xl flex-shrink-0">{c.partySymbol}</span>
-                                      )}
-                                      <span className="font-semibold text-blue-900 text-sm">{c.partyName}</span>
-                                    </div>
-                                  </div>
-                                </div>
+                            <div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <h4 className="text-xl font-black text-blue-900">{selectedCandidate.name}</h4>
+                                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-orange-100 text-orange-800">
+                                  {electionLabel(selectedCandidate.electionType)}
+                                </span>
                               </div>
+                              <p className="text-sm font-semibold text-gray-600 mt-0.5">
+                                {selectedCandidate.partyName} {selectedCandidate.partyAbbr ? `(${selectedCandidate.partyAbbr})` : ''}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleEdit(selectedCandidate)}
+                              className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm cursor-pointer"
+                            >
+                              <Pencil className="w-4 h-4" />
+                              Edit Candidate
+                            </button>
+                            <button
+                              onClick={() => setDeleteId(selectedCandidate.id)}
+                              className="flex items-center gap-1.5 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 transition-colors shadow-sm cursor-pointer"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Candidate Details Grid */}
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-5 pt-5 pb-6 border-b border-gray-100">
+                          <Detail label="Candidate Name" value={selectedCandidate.name} />
+                          <Detail label="Election Type" value={electionLabel(selectedCandidate.electionType)} />
+                          <Detail label="State / UT" value={selectedCandidate.state} />
+                          <Detail label="District" value={selectedCandidate.district} />
+                          <Detail label="Constituency" value={selectedCandidate.constituency} />
+                          <Detail label="Date of Birth" value={formatDobToDDMMYYYY(selectedCandidate.dob)} />
+                          <Detail label="Age" value={selectedCandidate.age ? `${selectedCandidate.age} years` : '—'} />
+                        </div>
+
+                        {/* Centered Party & Symbol Section */}
+                        <div className="pt-6 flex flex-col items-center justify-center text-center">
+                          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Party & Symbol</p>
+                          <div className="flex flex-col items-center justify-center p-6 bg-gray-50 rounded-2xl border-2 border-orange-200/80 w-full max-w-md shadow-sm">
+                            <div className="w-28 h-28 sm:w-32 sm:h-32 bg-white border-2 border-orange-300 rounded-2xl flex items-center justify-center p-3 mb-3 shadow-md">
+                              {selectedCandidate.partySymbolImage ? (
+                                <img
+                                  src={selectedCandidate.partySymbolImage}
+                                  alt={selectedCandidate.partyName}
+                                  className="w-full h-full object-contain"
+                                />
+                              ) : (
+                                <span className="text-7xl">{selectedCandidate.partySymbol}</span>
+                              )}
+                            </div>
+                            <span className="text-xs font-extrabold uppercase tracking-wider text-orange-600 block mb-1">
+                              Official Election Symbol
+                            </span>
+                            <h5 className="font-black text-blue-900 text-lg sm:text-xl leading-tight">
+                              {selectedCandidate.partyName}
+                            </h5>
+                            {selectedCandidate.partyAbbr && (
+                              <span className="inline-block mt-2 px-3 py-1 bg-blue-100 text-blue-800 text-xs font-bold rounded-full">
+                                {selectedCandidate.partyAbbr}
+                              </span>
                             )}
                           </div>
-                        ))}
+                        </div>
                       </div>
                     )}
                   </>

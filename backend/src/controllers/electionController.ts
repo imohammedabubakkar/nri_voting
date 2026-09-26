@@ -77,6 +77,21 @@ export async function setSchedule(req: Request, res: Response, next: NextFunctio
       return;
     }
 
+    if (votingCountry === 'All Countries' && date && resultDate) {
+      const [sy, sm, sd] = date.split('-').map(Number);
+      const [ry, rm, rd] = resultDate.split('-').map(Number);
+      const startUtc = Date.UTC(sy, sm - 1, sd);
+      const resUtc = Date.UTC(ry, rm - 1, rd);
+      const diffDays = Math.round((resUtc - startUtc) / (1000 * 60 * 60 * 24));
+      if (diffDays < 2) {
+        res.status(400).json({
+          success: false,
+          message: 'For "All Countries" election, the result release date must be after 2 days of the conducting election start date.',
+        });
+        return;
+      }
+    }
+
     // Replace previous schedules or create new
     await ElectionSchedule.deleteMany({});
 

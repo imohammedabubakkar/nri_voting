@@ -88,11 +88,18 @@ export function RegionalClockCard({
 
   // Resolve timezone & format only when a country is selected
   const hasSelectedCountry = Boolean(activeCountry);
-  const timeZone = hasSelectedCountry ? resolveUserTimeZone(activeCountry, activeCity) : '';
+  const isAllCountries = activeCountry === 'All Countries';
+  const timeZone = isAllCountries
+    ? 'Asia/Kolkata'
+    : (hasSelectedCountry ? resolveUserTimeZone(activeCountry, activeCity) : '');
   const timeData = hasSelectedCountry ? formatRegionalTime(currentTime, timeZone) : null;
-  const countryFlag = hasSelectedCountry ? getCountryFlag(activeCountry) : '';
+  const countryFlag = isAllCountries
+    ? '🌍'
+    : (hasSelectedCountry ? getCountryFlag(activeCountry) : '');
 
-  const locationLabel = hasSelectedCountry
+  const locationLabel = isAllCountries
+    ? 'All Countries (Global Rolling Schedule)'
+    : hasSelectedCountry
     ? `${activeCountry}${activeCity ? ` (${activeCity})` : ''}`
     : '';
 
@@ -128,6 +135,9 @@ export function RegionalClockCard({
                   className="w-full pl-3 pr-8 py-2 bg-white border-2 border-orange-300 hover:border-orange-500 focus:border-orange-500 rounded-xl text-xs sm:text-sm font-bold text-gray-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition-all cursor-pointer appearance-none"
                 >
                   <option value="">-- Select Country --</option>
+                  <option value="All Countries" className="font-black text-blue-900 bg-blue-50">
+                    🌍 All Countries (Global - Country-Local Time)
+                  </option>
                   <optgroup label="Popular NRI Locations">
                     {POPULAR_NRI_COUNTRIES.map((c) => (
                       <option key={`pop-${c}`} value={c}>
@@ -147,7 +157,7 @@ export function RegionalClockCard({
               </div>
 
               {/* City selector if country has multiple timezones */}
-              {hasSelectedCountry && hasMultipleCities && (
+              {hasSelectedCountry && !isAllCountries && hasMultipleCities && (
                 <div className="relative min-w-[140px]">
                   <select
                     id="city-timezone-dropdown"
@@ -181,11 +191,13 @@ export function RegionalClockCard({
                   <span className="text-orange-400 font-semibold text-xs uppercase tracking-wider">Region:</span>
                   <span>{locationLabel}</span>
                   <span className="text-slate-400 font-normal text-xs hidden sm:inline">
-                    ({timeData.gmtOffset})
+                    {isAllCountries ? '(IST Reference Clock)' : `(${timeData.gmtOffset})`}
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-300 font-medium">
-                  {timeData.timeZoneLabel}
+                  {isAllCountries
+                    ? 'Country-Local Clocks: Voters vote according to their respective registered country times'
+                    : timeData.timeZoneLabel}
                 </p>
               </div>
             </div>

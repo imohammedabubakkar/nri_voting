@@ -20,6 +20,7 @@ export function AdminDashboardPage() {
   const [schedule, setSchedule] = useState<{
     date: string; fromTime: string; toTime: string; status: string;
     resultDate?: string; resultTime?: string;
+    country?: string; city?: string;
     allConstituencies: boolean; state?: string; district?: string;
     assemblyConstituency?: string; parliamentConstituency?: string;
   } | null>(() => {
@@ -31,7 +32,7 @@ export function AdminDashboardPage() {
     const update = () => {
       const current = new Date();
       setNow(current);
-      checkAndAutoStopElection(current);
+      checkAndAutoStopElection(current, schedule?.country);
       const raw = localStorage.getItem('electionSchedule');
       setSchedule(raw ? JSON.parse(raw) : null);
     };
@@ -45,14 +46,14 @@ export function AdminDashboardPage() {
       window.removeEventListener('electionScheduleUpdated', update);
       window.removeEventListener('storage', update);
     };
-  }, []);
+  }, [schedule?.country]);
 
   const handleLogout = () => {
     localStorage.removeItem('isAdminLoggedIn');
     navigate('/admin/login');
   };
 
-  const liveStatus = computeLiveElectionStatus(schedule, now);
+  const liveStatus = computeLiveElectionStatus(schedule, now, schedule?.country);
   const isElectionActive = liveStatus === 'active';
 
   const dashboardCards = [

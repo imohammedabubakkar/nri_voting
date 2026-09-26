@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { DISTRICTS_BY_STATE } from '../data/indiaData';
 import { CountryClockSelector } from '../components/RegionalClockCard';
-import { getCountryElectionStatus, getCountryFlag, computeLiveElectionStatus, checkAndAutoStopElection } from '../utils/timezoneUtils';
+import { getCountryElectionStatus, getCountryFlag, computeLiveElectionStatus, checkAndAutoStopElection, addDaysToDate } from '../utils/timezoneUtils';
 import { resetConstituencyVoting, resetAllConstituencyVoting } from '../utils/voteUtils';
 import { Time12Input } from '../components/Time12Input';
 
@@ -17,6 +17,8 @@ interface ElectionSchedule {
   toTime: string;
   resultDate: string;
   resultTime: string;
+  country?: string;
+  city?: string;
   allConstituencies: boolean;
   state: string;
   district: string;
@@ -63,8 +65,12 @@ export function ElectionStartPage() {
   const [errors, setErrors] = useState<string[]>([]);
   const [success, setSuccess] = useState(false);
   const [existing, setExisting] = useState<ElectionSchedule | null>(null);
-  const [previewCountry, setPreviewCountry] = useState('Australia');
-  const [previewCity, setPreviewCity] = useState('');
+  const [previewCountry, setPreviewCountry] = useState<string>(() => {
+    return (typeof localStorage !== 'undefined' && localStorage.getItem('selectedPreviewCountry')) || '';
+  });
+  const [previewCity, setPreviewCity] = useState<string>(() => {
+    return (typeof localStorage !== 'undefined' && localStorage.getItem('selectedPreviewCity')) || '';
+  });
   const [now, setNow] = useState(new Date());
 
   // Live ticking clock (1-second precision) and automatic election stop checker
@@ -72,7 +78,7 @@ export function ElectionStartPage() {
     const update = () => {
       const current = new Date();
       setNow(current);
-      checkAndAutoStopElection(current);
+      checkAndAutoStopElection(current, previewCountry, previewCity);
       const saved = localStorage.getItem('electionSchedule');
       if (saved) {
         setExisting(JSON.parse(saved));
@@ -90,7 +96,7 @@ export function ElectionStartPage() {
       window.removeEventListener('electionScheduleUpdated', update);
       window.removeEventListener('storage', update);
     };
-  }, []);
+  }, [previewCountry, previewCity]);
 
   // Initialize input fields from existing schedule on mount
   useEffect(() => {
@@ -109,6 +115,16 @@ export function ElectionStartPage() {
       if (parsed.parliamentConstituency) setParliamentConstituency(parsed.parliamentConstituency);
     }
   }, []);
+
+  // For "All Countries" election, automatically ensure resultDate is at least 2 days after election start date
+  useEffect(() => {
+    if (previewCountry === 'All Countries' && date) {
+      const minResDate = addDaysToDate(date, 2);
+      if (!resultDate || resultDate < minResDate) {
+        setResultDate(minResDate);
+      }
+    }
+  }, [previewCountry, date]);
 
   // Derive constituency options from registered candidates + users for this state/district
   const allCandidates: { electionType: string; constituency: string; state?: string; district?: string }[] =
@@ -147,6 +163,17 @@ export function ElectionStartPage() {
     if (fromTime && toTime && fromTime >= toTime) errs.push('End time must be after start time.');
     if (!resultDate) errs.push('Result release date (India Time) is required.');
     if (!resultTime) errs.push('Result release time (India Time) is required.');
+
+    // For "All Countries" election selection, enforce result release date to be after 2 days of election start date
+    if (previewCountry === 'All Countries' && date && resultDate) {
+      const minResultDate = addDaysToDate(date, 2);
+      if (resultDate < minResultDate) {
+        errs.push(
+          `For "All Countries" election, the result release date must be after 2 days of the conducting election start date (Earliest allowed: ${formatDate(minResultDate)}).`
+        );
+      }
+    }
+
     if (!allConstituencies) {
       if (!state) errs.push('Please select a state.');
       if (!district) errs.push('Please select a district.');
@@ -167,6 +194,8 @@ export function ElectionStartPage() {
       toTime,
       resultDate,
       resultTime,
+      country: previewCountry,
+      city: previewCity,
       allConstituencies,
       state: allConstituencies ? '' : state,
       district: allConstituencies ? '' : district,
@@ -198,21 +227,33 @@ export function ElectionStartPage() {
   }
 
   function handleStop() {
-    if (!existing) return;
-    const updated: ElectionSchedule = { ...existing, status: 'ended' };
-    localStorage.setItem('electionSchedule', JSON.stringify(updated));
-    setExisting(updated);
-    window.dispatchEvent(new CustomEvent('electionScheduleUpdated', { detail: updated }));
-  }
-
-  function handleClear() {
     localStorage.removeItem('electionSchedule');
-    setExisting(null);
+    localStorage.removeItem('selectedPreviewCountry');
+    localStorage.removeItem('selectedPreviewCity');
+    window.dispatchEvent(new CustomEvent('electionScheduleUpdated', { detail: null }));
     setDate(''); setFromTime(''); setToTime('');
     setResultDate(''); setResultTime('');
     setState(''); setDistrict(''); setAssemblyConstituency(''); setParliamentConstituency('');
     setAllConstituencies(true);
+    setPreviewCountry('');
+    setPreviewCity('');
+    setExisting(null);
+    window.location.reload();
+  }
+
+  function handleClear() {
+    localStorage.removeItem('electionSchedule');
+    localStorage.removeItem('selectedPreviewCountry');
+    localStorage.removeItem('selectedPreviewCity');
     window.dispatchEvent(new CustomEvent('electionScheduleUpdated', { detail: null }));
+    setDate(''); setFromTime(''); setToTime('');
+    setResultDate(''); setResultTime('');
+    setState(''); setDistrict(''); setAssemblyConstituency(''); setParliamentConstituency('');
+    setAllConstituencies(true);
+    setPreviewCountry('');
+    setPreviewCity('');
+    setExisting(null);
+    window.location.reload();
   }
 
   function handleStateChange(val: string) {
@@ -227,7 +268,7 @@ export function ElectionStartPage() {
     setParliamentConstituency('');
   }
 
-  const liveStatus = computeLiveElectionStatus(existing, now);
+  const liveStatus = computeLiveElectionStatus(existing, now, previewCountry, previewCity);
   const isElectionActive = liveStatus === 'active';
 
   const effectiveSchedule = existing || (date && fromTime && toTime && resultDate && resultTime ? {
@@ -248,6 +289,46 @@ export function ElectionStartPage() {
   const countryPreview = effectiveSchedule && previewCountry
     ? getCountryElectionStatus(effectiveSchedule, previewCountry, previewCity, now)
     : null;
+
+  // Automatically stop, reset all entered fields, and refresh the whole page when election ends
+  useEffect(() => {
+    if (!existing) return;
+
+    const checkCountry = existing.country || previewCountry;
+    const checkCity = existing.city || previewCity;
+    const targetStatus = checkCountry
+      ? getCountryElectionStatus(existing, checkCountry, checkCity, now).status
+      : null;
+
+    const isEnded =
+      existing.status === 'ended' ||
+      liveStatus === 'ended' ||
+      countryPreview?.status === 'ended' ||
+      targetStatus === 'ended';
+
+    if (isEnded) {
+      localStorage.removeItem('electionSchedule');
+      localStorage.removeItem('selectedPreviewCountry');
+      localStorage.removeItem('selectedPreviewCity');
+      window.dispatchEvent(new CustomEvent('electionScheduleUpdated', { detail: null }));
+
+      setDate('');
+      setFromTime('');
+      setToTime('');
+      setResultDate('');
+      setResultTime('');
+      setState('');
+      setDistrict('');
+      setAssemblyConstituency('');
+      setParliamentConstituency('');
+      setAllConstituencies(true);
+      setPreviewCountry('');
+      setPreviewCity('');
+      setExisting(null);
+
+      window.location.reload();
+    }
+  }, [existing, liveStatus, countryPreview?.status, previewCountry, previewCity]);
 
   return (
     <Layout>
@@ -346,15 +427,32 @@ export function ElectionStartPage() {
                     <span>{getCountryFlag(previewCountry)}</span>
                     <span>{previewCountry}:</span>
                     <span className="uppercase">{countryPreview.status.replace('_', ' ')}</span>
-                    <span className="text-[11px] opacity-80 font-normal">({countryPreview.localFormattedTime12})</span>
+                    <span className="text-[11px] opacity-80 font-normal">
+                      {previewCountry === 'All Countries' ? '(Worldwide Local Time)' : `(${countryPreview.localFormattedTime12})`}
+                    </span>
                   </span>
                 )}
               </div>
               <CountryClockSelector
-                defaultCountry={previewCountry}
+                country={previewCountry}
+                city={previewCity}
+                defaultCountry=""
                 onCountryChange={(c, city) => {
                   setPreviewCountry(c);
                   setPreviewCity(city || '');
+                  if (c === 'All Countries' && date) {
+                    const minResDate = addDaysToDate(date, 2);
+                    if (!resultDate || resultDate < minResDate) {
+                      setResultDate(minResDate);
+                    }
+                  }
+                  if (c) {
+                    localStorage.setItem('selectedPreviewCountry', c);
+                    if (city) localStorage.setItem('selectedPreviewCity', city);
+                  } else {
+                    localStorage.removeItem('selectedPreviewCountry');
+                    localStorage.removeItem('selectedPreviewCity');
+                  }
                 }}
               />
             </div>
@@ -391,8 +489,18 @@ export function ElectionStartPage() {
                     type="date"
                     value={date}
                     onChange={e => {
-                      setDate(e.target.value);
-                      if (!resultDate) setResultDate(e.target.value);
+                      const newDate = e.target.value;
+                      setDate(newDate);
+                      if (previewCountry === 'All Countries') {
+                        if (newDate) {
+                          const minResDate = addDaysToDate(newDate, 2);
+                          if (!resultDate || resultDate < minResDate) {
+                            setResultDate(minResDate);
+                          }
+                        }
+                      } else {
+                        if (!resultDate) setResultDate(newDate);
+                      }
                     }}
                     className={inputCls}
                   />
@@ -482,6 +590,11 @@ export function ElectionStartPage() {
                   <input
                     type="date"
                     value={resultDate}
+                    min={
+                      previewCountry === 'All Countries' && date
+                        ? addDaysToDate(date, 2)
+                        : date || ''
+                    }
                     onChange={e => setResultDate(e.target.value)}
                     className={inputCls}
                   />
@@ -518,6 +631,20 @@ export function ElectionStartPage() {
                     <span className="text-xs font-bold px-2.5 py-1 bg-green-200 text-green-800 rounded-md">
                       IST (GMT+5:30)
                     </span>
+                  </div>
+                )}
+
+                {/* Informational Callout when 'All Countries' is selected */}
+                {previewCountry === 'All Countries' && (
+                  <div className="sm:col-span-2 p-3.5 bg-blue-50 border-2 border-blue-200 rounded-xl text-xs text-blue-900 flex items-start gap-2.5 shadow-sm">
+                    <span className="text-base leading-none">🌍</span>
+                    <div>
+                      <p className="font-bold text-blue-950">2-Day Result Release Delay Enforced for "All Countries"</p>
+                      <p className="text-blue-800 mt-0.5">
+                        Because election is conducted across all international timezones based on each country's own local clock, election results can only be released after 2 days of conducting the election start date (Earliest:{' '}
+                        <strong className="text-blue-950 font-bold">{date ? formatDate(addDaysToDate(date, 2)) : 'Date + 2 Days'}</strong>).
+                      </p>
+                    </div>
                   </div>
                 )}
               </div>

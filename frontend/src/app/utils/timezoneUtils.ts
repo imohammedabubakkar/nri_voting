@@ -759,10 +759,25 @@ export function isoCodeToFlagEmoji(isoCode: string): string {
 }
 
 /**
+ * Safely adds days to a YYYY-MM-DD date string and returns the new YYYY-MM-DD date string.
+ */
+export function addDaysToDate(dateStr: string, days: number): string {
+  if (!dateStr) return '';
+  const [y, m, d] = dateStr.split('-').map(Number);
+  if (!y || !m || !d) return '';
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + days);
+  const resY = dt.getUTCFullYear();
+  const resM = String(dt.getUTCMonth() + 1).padStart(2, '0');
+  const resD = String(dt.getUTCDate()).padStart(2, '0');
+  return `${resY}-${resM}-${resD}`;
+}
+
+/**
  * Gets flag emoji or 2-letter indicator for any country
  */
 export function getCountryFlag(country?: string): string {
-  if (!country) return '🌍';
+  if (!country || country === 'All Countries') return '🌍';
   if (COUNTRY_FLAGS[country]) return COUNTRY_FLAGS[country];
   const iso = COUNTRY_ISO_CODES[country];
   if (iso) return isoCodeToFlagEmoji(iso);
@@ -812,6 +827,9 @@ export function getBrowserTimeZone(): string {
  * Resolves the appropriate IANA timezone for a user based on their country and city
  */
 export function resolveUserTimeZone(country?: string, city?: string): string {
+  if (country === 'All Countries') {
+    return 'Asia/Kolkata';
+  }
   if (country && city && CITY_TIMEZONE_OVERRIDES[country]?.[city]) {
     return CITY_TIMEZONE_OVERRIDES[country][city];
   }
@@ -1027,10 +1045,11 @@ export interface CountryElectionStatusResult {
  */
 export function getCountryElectionStatus(
   schedule: {
-    date: string;
-    fromTime: string;
-    toTime: string;
-    status: string;
+    date?: string;
+    fromTime?: string;
+    toTime?: string;
+    status?: string;
+    [key: string]: any;
   } | null,
   country?: string,
   city?: string,
@@ -1084,6 +1103,43 @@ export function getCountryElectionStatus(
     ? (schedule.toTime.length === 4 ? `0${schedule.toTime}` : schedule.toTime.slice(0, 5))
     : '';
 
+  // Handle "All Countries" global rolling schedule
+  if (activeCountry === 'All Countries') {
+    if (!schedule.date || !normFrom || !normTo) {
+      return {
+        ...baseResult,
+        status: schedule.status === 'active' ? 'active' : 'no_election',
+        message: 'Election is configured for all countries across the world.',
+      };
+    }
+
+    // World timezones range from UTC+14 (earliest, Kiribati) to UTC-11 (latest, Niue/Samoa)
+    const earliestStartUtc = parseZonedTimeToUtc(schedule.date, normFrom, 'Pacific/Kiritimati');
+    const latestEndUtc = parseZonedTimeToUtc(schedule.date, normTo, 'Pacific/Niue');
+
+    if (now.getTime() < earliestStartUtc.getTime()) {
+      return {
+        ...baseResult,
+        status: 'not_started',
+        message: `Voting across all countries opens on ${schedule.date} at ${fromTimeFormatted} in each country's local time.`,
+      };
+    }
+
+    if (now.getTime() > latestEndUtc.getTime()) {
+      return {
+        ...baseResult,
+        status: 'ended',
+        message: `Voting has concluded across all countries worldwide (polls closed at ${toTimeFormatted} local time).`,
+      };
+    }
+
+    return {
+      ...baseResult,
+      status: 'active',
+      message: `Voting is ACTIVE worldwide! NRI voters across all countries vote according to their local country clock (${fromTimeFormatted} – ${toTimeFormatted}).`,
+    };
+  }
+
   // 1. If election date is in the future in voter's country:
   if (schedule.date && local.dateStr < schedule.date) {
     return {
@@ -1133,7 +1189,11 @@ export function getCountryElectionStatus(
  * Automatically checks and stops the election in localStorage if the end time has passed.
  * When the end time has passed, status is automatically updated to 'ended' so manual stopping is not required.
  */
-export function checkAndAutoStopElection(now: Date = new Date()): { stopped: boolean; schedule: any } {
+export function checkAndAutoStopElection(
+  now: Date = new Date(),
+  country?: string,
+  city?: string
+): { stopped: boolean; schedule: any } {
   try {
     const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('electionSchedule') : null;
     if (!raw) return { stopped: false, schedule: null };
@@ -1146,11 +1206,28 @@ export function checkAndAutoStopElection(now: Date = new Date()): { stopped: boo
       return { stopped: false, schedule };
     }
 
-    const [year, month, day] = schedule.date.split('-').map(Number);
-    const [toH, toM] = schedule.toTime.split(':').map(Number);
-    const end = new Date(year, month - 1, day, toH, toM, 0, 0);
+    const targetCountry = country || schedule.country || (typeof localStorage !== 'undefined' ? localStorage.getItem('selectedPreviewCountry') : null);
+    const targetCity = city || schedule.city || '';
 
-    if (now.getTime() > end.getTime()) {
+    let isEnded = false;
+
+    if (targetCountry) {
+      const cStatus = getCountryElectionStatus(schedule, targetCountry, targetCity, now);
+      if (cStatus.status === 'ended') {
+        isEnded = true;
+      }
+    }
+
+    if (!isEnded) {
+      const [year, month, day] = schedule.date.split('-').map(Number);
+      const [toH, toM] = schedule.toTime.split(':').map(Number);
+      const end = new Date(year, month - 1, day, toH, toM, 0, 0);
+      if (now.getTime() > end.getTime()) {
+        isEnded = true;
+      }
+    }
+
+    if (isEnded) {
       const updated = { ...schedule, status: 'ended', endedAt: Date.now(), autoStopped: true };
       localStorage.setItem('electionSchedule', JSON.stringify(updated));
       if (typeof window !== 'undefined') {
@@ -1176,8 +1253,12 @@ export function computeLiveElectionStatus(
     fromTime?: string;
     toTime?: string;
     status?: string;
+    country?: string;
+    city?: string;
   } | null,
-  now: Date = new Date()
+  now: Date = new Date(),
+  country?: string,
+  city?: string
 ): 'no_election' | 'not_started' | 'active' | 'ended' {
   if (!schedule || !schedule.date || !schedule.fromTime || !schedule.toTime) {
     return 'no_election';
@@ -1185,6 +1266,18 @@ export function computeLiveElectionStatus(
 
   if (schedule.status === 'ended') {
     return 'ended';
+  }
+
+  const targetCountry = country || schedule.country || (typeof localStorage !== 'undefined' ? localStorage.getItem('selectedPreviewCountry') : null);
+  const targetCity = city || schedule.city || '';
+
+  if (targetCountry) {
+    const cStatus = getCountryElectionStatus(schedule, targetCountry, targetCity, now);
+    if (cStatus.status === 'ended') {
+      checkAndAutoStopElection(now, targetCountry, targetCity);
+      return 'ended';
+    }
+    return cStatus.status;
   }
 
   try {
